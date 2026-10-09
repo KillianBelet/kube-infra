@@ -1,0 +1,21 @@
+---
+# Supprime le cluster local kind (les outils installés sont conservés).
+#   ansible-playbook local-down.yml
+- name: Supprimer le cluster local kube-12
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    kind_cluster_name: kube-12
+  environment:
+    PATH: "{{ lookup('ansible.builtin.env', 'HOME') }}/.local/bin:{{ lookup('ansible.builtin.env', 'PATH') }}"
+  tasks:
+    - name: Clusters kind existants
+      ansible.builtin.command: kind get clusters
+      register: kind_clusters
+      changed_when: false
+
+    - name: Supprimer le cluster
+      ansible.builtin.command: kind delete cluster --name {{ kind_cluster_name }}
+      when: kind_cluster_name in kind_clusters.stdout_lines
+      changed_when: true

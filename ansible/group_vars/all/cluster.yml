@@ -1,0 +1,28 @@
+---
+# Paramètres communs aux environnements local (kind) et AWS (kubeadm).
+# Nœuds du schéma « Répartition des pods » (IP privées utilisées sur AWS)
+nodes:
+  - name: kube-1
+    role: control_plane
+    private_ip: 10.0.0.235
+  - name: kube-2
+    role: worker
+    private_ip: 10.0.0.113
+  - name: kube-3
+    role: worker
+    private_ip: 10.0.0.115
+
+kubernetes_version: "1.36"
+pod_cidr: 192.168.0.0/16
+calico_version: v3.33.0
+
+# Label posé sur chaque nœud, local comme AWS : les nodeSelector/affinity
+# des composants l'utilisent (ex. kube12/node: kube-3 pour Prometheus).
+node_label_key: kube12/node
+
+# Traefik : NodePorts fixes, 80/443 de l'hôte redirigés dessus
+traefik_http_nodeport: 30080
+traefik_https_nodeport: 30443
+
+# StorageClass partagée : EFS sur AWS, simulée en local
+storage_class: efs-sc

@@ -1,0 +1,146 @@
+---
+# Environnement local identique pour toute l'équipe : cluster kind à 3 nœuds
+# (kube-1 control plane, kube-2, kube-3), Calico, StorageClass efs-sc,
+# ports 80/443 de la machine -> Traefik, domaines *.127.0.0.1.sslip.io.
+#
+# Prérequis : Docker démarré (Docker Desktop sous Windows/Mac) et Ansible.
+#   ansible-playbook local.yml          # créer / mettre à niveau
+#   ansible-playbook local-down.yml     # supprimer
+#
+# kind, kubectl et helm sont installés dans ~/.local/bin aux versions figées ci-dessous.
+- name: Cluster local kube-12 (kind)
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  gather_subset: [min]
+  vars_files:
+    - group_vars/all/cluster.yml
+  vars:
+    kind_cluster_name: kube-12
+    kind_version: v0.33.0
+    kind_node_image: kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed
+    kubectl_version: v1.36.5
+    helm_version: v4.3.0
+    bin_dir: "{{ ansible_env.HOME }}/.local/bin"
+    work_dir: "{{ ansible_env.HOME }}/.kube-12"
+    os: "{{ ansible_system | lower }}" # linux / darwin
+    arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}[ansible_architecture] }}"
+    kubectl: "{{ bin_dir }}/kubectl --context kind-{{ kind_cluster_name }}"
+  environment:
+    PATH: "{{ bin_dir }}:{{ ansible_env.PATH }}"
+
+  tasks:
+    # ---------- Prérequis ----------
+    - name: Docker est démarré
+      ansible.builtin.command: docker info --format '{{ "{{" }}.ServerVersion{{ "}}" }}'
+      changed_when: false
+
+    - name: Dossiers de travail
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: ["{{ bin_dir }}", "{{ work_dir }}"]
+
+    # ---------- Outils ----------
+    - name: kind {{ kind_version }}
+      ansible.builtin.get_url:
+        url: "https://kind.sigs.k8s.io/dl/{{ kind_version }}/kind-{{ os }}-{{ arch }}"
+        checksum: "sha256:https://kind.sigs.k8s.io/dl/{{ kind_version }}/kind-{{ os }}-{{ arch }}.sha256sum"
+        dest: "{{ bin_dir }}/kind"
+        mode: "0755"
+
+    - name: kubectl {{ kubectl_version }}
+      ansible.builtin.get_url:
+        url: "https://dl.k8s.io/release/{{ kubectl_version }}/bin/{{ os }}/{{ arch }}/kubectl"
+        checksum: "sha256:https://dl.k8s.io/release/{{ kubectl_version }}/bin/{{ os }}/{{ arch }}/kubectl.sha256"
+        dest: "{{ bin_dir }}/kubectl"
+        mode: "0755"
+
+    - name: helm {{ helm_version }} (archive)
+      ansible.builtin.get_url:
+        url: "https://get.helm.sh/helm-{{ helm_version }}-{{ os }}-{{ arch }}.tar.gz"
+        checksum: "sha256:https://get.helm.sh/helm-{{ helm_version }}-{{ os }}-{{ arch }}.tar.gz.sha256sum"
+        dest: "{{ work_dir }}/helm-{{ helm_version }}.tar.gz"
+        mode: "0644"
+      register: helm_archive
+
+    - name: helm {{ helm_version }} (binaire)
+      ansible.builtin.unarchive:
+        src: "{{ helm_archive.dest }}"
+        dest: "{{ bin_dir }}"
+        include: ["{{ os }}-{{ arch }}/helm"]
+        extra_opts: [--strip-components=1]
+        mode: "0755"
+      when: helm_archive is changed or not (bin_dir ~ '/helm') is file
+
+    # ---------- Cluster ----------
+    - name: Configuration kind
+      ansible.builtin.template:
+        src: templates/kind-config.yaml.j2
+        dest: "{{ work_dir }}/kind-config.yaml"
+        mode: "0644"
+      register: kind_config
+
+    - name: Clusters kind existants
+      ansible.builtin.command: kind get clusters
+      register: kind_clusters
+      changed_when: false
+
+    - name: Avertir si la configuration a changé
+      ansible.builtin.debug:
+        msg: >-
+          La configuration kind a changé : lancer local-down.yml puis local.yml
+          pour recréer le cluster.
+      when: kind_config is changed and kind_cluster_name in kind_clusters.stdout_lines
+
+    - name: Créer le cluster (3 nœuds)
+      ansible.builtin.command: >-
+        kind create cluster --config {{ work_dir }}/kind-config.yaml --wait 0s
+      when: kind_cluster_name not in kind_clusters.stdout_lines
+      changed_when: true
+
+    - name: Calico {{ calico_version }}
+      ansible.builtin.command: >-
+        {{ kubectl }} apply --server-side --force-conflicts
+        -f https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/calico.yaml
+      changed_when: false # apply idempotent
+
+    - name: Attendre que les 3 nœuds soient Ready
+      ansible.builtin.command: "{{ kubectl }} wait --for=condition=Ready nodes --all --timeout=300s"
+      changed_when: false
+
+    # ---------- Stockage ----------
+    # Sur AWS, efs-sc est servi par le driver EFS CSI. En local, même nom de
+    # StorageClass, servi par le provisioner local-path fourni avec kind :
+    # les manifests de l'application sont identiques dans les deux environnements.
+    - name: StorageClass {{ storage_class }} (simulation d'EFS)
+      ansible.builtin.command:
+        cmd: "{{ kubectl }} apply -f -"
+        stdin: |
+          apiVersion: storage.k8s.io/v1
+          kind: StorageClass
+          metadata:
+            name: {{ storage_class }}
+            labels:
+              kube12/env: local
+          provisioner: rancher.io/local-path
+          reclaimPolicy: Retain
+          volumeBindingMode: WaitForFirstConsumer
+      register: sc
+      changed_when: "'unchanged' not in sc.stdout"
+
+    # ---------- Récapitulatif ----------
+    - name: Nœuds
+      ansible.builtin.command: "{{ kubectl }} get nodes -L {{ node_label_key }}"
+      register: nodes_out
+      changed_when: false
+
+    - name: Récapitulatif
+      ansible.builtin.debug:
+        msg:
+          - "Contexte kubectl : kind-{{ kind_cluster_name }}"
+          - "Domaines : <service>.127.0.0.1.sslip.io (80/443 -> NodePorts {{ traefik_http_nodeport }}/{{ traefik_https_nodeport }})"
+          - "StorageClass : {{ storage_class }}"
+          - "Outils : {{ bin_dir }} (à ajouter au PATH si besoin)"
+          - "{{ nodes_out.stdout_lines }}"

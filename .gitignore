@@ -1,0 +1,6 @@
+# Secrets
+*.pem
+*accessKeys*.csv
+.vault_pass*
+kubeconfig*
+*.retry

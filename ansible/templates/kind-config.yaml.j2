@@ -1,0 +1,24 @@
+# Généré par local.yml — cluster local qui reproduit la topologie AWS.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: {{ kind_cluster_name }}
+networking:
+  disableDefaultCNI: true # Calico, comme sur AWS
+  podSubnet: {{ pod_cidr }}
+nodes:
+{% for n in nodes %}
+  - role: {{ 'control-plane' if n.role == 'control_plane' else 'worker' }}
+    image: {{ kind_node_image }}
+    labels:
+      {{ node_label_key }}: {{ n.name }}
+{% if n.role == 'control_plane' %}
+    # Porte d'entrée : comme kube-1 sur AWS, 80/443 -> NodePorts Traefik
+    extraPortMappings:
+      - containerPort: {{ traefik_http_nodeport }}
+        hostPort: 80
+        listenAddress: 127.0.0.1
+      - containerPort: {{ traefik_https_nodeport }}
+        hostPort: 443
+        listenAddress: 127.0.0.1
+{% endif %}
+{% endfor %}
