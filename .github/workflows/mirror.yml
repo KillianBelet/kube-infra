@@ -1,0 +1,33 @@
+name: Mirror vers le repo de l'école
+
+on:
+  push:
+    branches: ['**']
+    tags: ['**']
+  delete:
+  workflow_dispatch:
+
+concurrency:
+  group: mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    if: github.repository == 'KillianBelet/kube-infra'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Pousser vers le repo de l'école
+        env:
+          TOKEN: ${{ secrets.ECOLE_TOKEN }}
+        run: |
+          git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
+          git remote set-head origin -d || true
+          git push --prune \
+            "https://x-access-token:${TOKEN}@github.com/EpitechMscProPromo2027/T-CLO-901-PAR-9-1-kube-12.git" \
+            '+refs/remotes/origin/*:refs/heads/*' \
+            '+refs/tags/*:refs/tags/*'
