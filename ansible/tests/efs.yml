@@ -1,96 +1,130 @@
 ---
 # Test #28 : un volume efs-sc est partagé entre deux nœuds.
-# Un pod sur kube-2 écrit, un pod sur kube-3 relit ; tout est supprimé à la fin
-# (le PV reste en Retain : on le supprime aussi, l'access point EFS est conservé).
+# Un pod sur kube-2 écrit, un pod sur kube-3 relit. Rejouable : les restes d'un essai
+# précédent sont supprimés au début, et tout est nettoyé à la fin, même en cas d'échec
+# (le PV en Retain est supprimé aussi ; l'access point EFS est conservé).
 #   ansible-playbook -i inventory tests/efs.yml
 - name: Test du stockage partagé EFS
   hosts: control_plane
   become: true
   gather_facts: false
   vars:
-    kubectl: kubectl --kubeconfig /etc/kubernetes/admin.conf -n efs-test
+    kubectl_admin: kubectl --kubeconfig /etc/kubernetes/admin.conf
+    kubectl: "{{ kubectl_admin }} -n efs-test"
   tasks:
     - name: Message de test (fixé une fois)
       ansible.builtin.set_fact:
         message: "efs ok {{ 999999 | random }}"
 
-    - name: Ressources de test
-      ansible.builtin.command:
-        cmd: kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f -
-        stdin: |
-          apiVersion: v1
-          kind: Namespace
-          metadata: {name: efs-test}
-          ---
-          apiVersion: v1
-          kind: PersistentVolumeClaim
-          metadata: {name: shared, namespace: efs-test}
-          spec:
-            accessModes: [ReadWriteMany]
-            storageClassName: {{ storage_class }}
-            resources: {requests: {storage: 1Gi}}
-          ---
-          apiVersion: v1
-          kind: Pod
-          metadata: {name: writer, namespace: efs-test}
-          spec:
-            nodeSelector:
-              {{ node_label_key }}: kube-2
-            restartPolicy: Never
-            containers:
-              - name: c
-                image: busybox:1.37
-                command: [sh, -c, 'echo "{{ message }}" > /data/test.txt']
-                volumeMounts: [{name: d, mountPath: /data}]
-            volumes: [{name: d, persistentVolumeClaim: {claimName: shared}}]
-      changed_when: true
+    - name: Supprimer les restes d'un essai précédent
+      ansible.builtin.command: "{{ kubectl_admin }} delete namespace efs-test --ignore-not-found --wait=true --timeout=120s"
+      register: previous
+      changed_when: "'deleted' in previous.stdout"
 
-    - name: Attendre l'écriture sur kube-2
-      ansible.builtin.command: "{{ kubectl }} wait --for=jsonpath='{.status.phase}'=Succeeded pod/writer --timeout=180s"
-      changed_when: false
+    - name: Test écriture / lecture
+      block:
+        - name: Ressources de test
+          ansible.builtin.command:
+            cmd: "{{ kubectl_admin }} apply -f -"
+            stdin: |
+              apiVersion: v1
+              kind: Namespace
+              metadata: {name: efs-test}
+              ---
+              apiVersion: v1
+              kind: PersistentVolumeClaim
+              metadata: {name: shared, namespace: efs-test}
+              spec:
+                accessModes: [ReadWriteMany]
+                storageClassName: {{ storage_class }}
+                resources: {requests: {storage: 1Gi}}
+              ---
+              apiVersion: v1
+              kind: Pod
+              metadata: {name: writer, namespace: efs-test}
+              spec:
+                nodeSelector:
+                  {{ node_label_key }}: kube-2
+                restartPolicy: Never
+                containers:
+                  - name: c
+                    image: busybox:1.37
+                    command: [sh, -c, 'echo "{{ message }}" > /data/test.txt']
+                    volumeMounts: [{name: d, mountPath: /data}]
+                volumes: [{name: d, persistentVolumeClaim: {claimName: shared}}]
+          changed_when: true
 
-    - name: Lecteur sur kube-3
-      ansible.builtin.command:
-        cmd: kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f -
-        stdin: |
-          apiVersion: v1
-          kind: Pod
-          metadata: {name: reader, namespace: efs-test}
-          spec:
-            nodeSelector:
-              {{ node_label_key }}: kube-3
-            restartPolicy: Never
-            containers:
-              - name: c
-                image: busybox:1.37
-                command: [cat, /data/test.txt]
-                volumeMounts: [{name: d, mountPath: /data}]
-            volumes: [{name: d, persistentVolumeClaim: {claimName: shared}}]
-      changed_when: true
+        - name: Attendre l'écriture sur kube-2
+          ansible.builtin.command: "{{ kubectl }} wait --for=jsonpath='{.status.phase}'=Succeeded pod/writer --timeout=180s"
+          changed_when: false
 
-    - name: Attendre la lecture sur kube-3
-      ansible.builtin.command: "{{ kubectl }} wait --for=jsonpath='{.status.phase}'=Succeeded pod/reader --timeout=180s"
-      changed_when: false
+        - name: Lecteur sur kube-3
+          ansible.builtin.command:
+            cmd: "{{ kubectl_admin }} apply -f -"
+            stdin: |
+              apiVersion: v1
+              kind: Pod
+              metadata: {name: reader, namespace: efs-test}
+              spec:
+                nodeSelector:
+                  {{ node_label_key }}: kube-3
+                restartPolicy: Never
+                containers:
+                  - name: c
+                    image: busybox:1.37
+                    command: [cat, /data/test.txt]
+                    volumeMounts: [{name: d, mountPath: /data}]
+                volumes: [{name: d, persistentVolumeClaim: {claimName: shared}}]
+          changed_when: true
 
-    - name: Contenu lu sur kube-3
-      ansible.builtin.command: "{{ kubectl }} logs reader"
-      register: read
-      changed_when: false
+        - name: Attendre la lecture sur kube-3
+          ansible.builtin.command: "{{ kubectl }} wait --for=jsonpath='{.status.phase}'=Succeeded pod/reader --timeout=180s"
+          changed_when: false
 
-    - name: Le fichier écrit sur kube-2 est lu sur kube-3
-      ansible.builtin.assert:
-        that: read.stdout == message
-        success_msg: "OK : volume partagé entre kube-2 et kube-3 ({{ read.stdout }})"
-        fail_msg: "attendu '{{ message }}', lu '{{ read.stdout }}'"
+        - name: Contenu lu sur kube-3
+          ansible.builtin.command: "{{ kubectl }} logs reader"
+          register: read
+          changed_when: false
 
-    - name: Volume créé
-      ansible.builtin.command: "{{ kubectl }} get pvc shared -o jsonpath={.spec.volumeName}"
-      register: pv
-      changed_when: false
+        - name: Le fichier écrit sur kube-2 est lu sur kube-3
+          ansible.builtin.assert:
+            that: read.stdout == message
+            success_msg: "OK : volume partagé entre kube-2 et kube-3 ({{ read.stdout }})"
+            fail_msg: "attendu '{{ message }}', lu '{{ read.stdout }}'"
 
-    - name: Nettoyage
-      ansible.builtin.command: "{{ item }}"
-      loop:
-        - kubectl --kubeconfig /etc/kubernetes/admin.conf delete namespace efs-test --wait=true
-        - kubectl --kubeconfig /etc/kubernetes/admin.conf delete pv {{ pv.stdout }} --ignore-not-found
-      changed_when: true
+      rescue:
+        - name: Diagnostic
+          ansible.builtin.shell: |
+            set -o pipefail
+            {{ kubectl }} get pvc,pods -o wide
+            echo '--- événements'
+            {{ kubectl }} get events --sort-by=.lastTimestamp | tail -15
+            echo '--- driver EFS (controller)'
+            {{ kubectl_admin }} -n kube-system logs deploy/efs-csi-controller -c efs-plugin --tail=20
+          register: diag
+          changed_when: false
+          failed_when: false
+
+        - name: Afficher le diagnostic
+          ansible.builtin.debug:
+            var: diag.stdout_lines
+
+        - name: Échec du test
+          ansible.builtin.fail:
+            msg: "Le volume EFS n'est pas partagé correctement : voir le diagnostic ci-dessus."
+
+      always:
+        - name: Volume créé
+          ansible.builtin.command: "{{ kubectl }} get pvc shared -o jsonpath={.spec.volumeName}"
+          register: pv
+          changed_when: false
+          failed_when: false
+
+        - name: Nettoyage du namespace
+          ansible.builtin.command: "{{ kubectl_admin }} delete namespace efs-test --ignore-not-found --wait=true --timeout=120s"
+          changed_when: true
+
+        - name: Nettoyage du volume
+          ansible.builtin.command: "{{ kubectl_admin }} delete pv {{ pv.stdout }} --ignore-not-found"
+          when: pv.stdout | default('') | length > 0
+          changed_when: true
