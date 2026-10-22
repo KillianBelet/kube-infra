@@ -3,5 +3,5 @@
 # en rebondissant par kube-1 (bastion).
 ansible_host: "{{ private_ip }}"
 ansible_ssh_common_args: >-
-  -o ProxyCommand="ssh -i {{ ssh_key_path }} -o StrictHostKeyChecking=accept-new
+  -o ProxyCommand="ssh -i {{ ssh_key_path }} {{ ssh_host_key_opts }}
   -W %h:%p {{ ansible_user }}@{{ public_ip }}"
