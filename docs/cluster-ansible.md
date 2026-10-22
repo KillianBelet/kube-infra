@@ -221,9 +221,12 @@ Commandes utiles sur kube-1 : `sudo crictl ps`, `sudo journalctl -u kubelet -f`,
 
 ## 8. Tests réalisés
 
-Sur 3 VM AWS `c7i-flex.large` (2 vCPU, 4 Go), Ubuntu 24.04 :
+Sur 3 VM AWS `c7i-flex.large` (2 vCPU, 4 Go), Ubuntu 24.04, cluster créé de zéro :
 
-- `ansible all -m ping` : 3 × SUCCESS ;
-- `site.yml` : 0 échec, 3 nœuds `Ready` en v1.36.4, containerd 2.4.2, labels corrects ;
-- `site.yml` rejoué : `changed=0` sur kube-2 et kube-3 ; sur kube-1, seul le kubeconfig local
-  changeait, corrigé ensuite.
+| Test | Résultat |
+|---|---|
+| `ansible all -m ping` | 3 × SUCCESS |
+| `site.yml` (1er passage) | 0 échec, 3 nœuds `Ready` en v1.36.4, containerd 2.4.2, labels `kube12/node` corrects, driver EFS installé |
+| `site.yml` (2e passage) | `changed=0` sur kube-1, kube-2 et kube-3 |
+| `tests/efs.yml` | fichier écrit depuis kube-2, relu à l'identique depuis kube-3, puis nettoyage |
+| `ansible-lint` | 0 erreur, 0 avertissement (profil `production`) |
