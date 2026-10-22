@@ -1,7 +1,7 @@
 # Cluster Kubernetes de prod (Ansible + kubeadm)
 
-Tickets : #23 inventaire, #24 rôle `common`, #25 control plane, #26 workers, #27 Calico.
-Suite prévue : #28 EFS, #29 `site.yml` complet et ansible-lint.
+Tickets : #23 inventaire, #24 rôle `common`, #25 control plane, #26 workers, #27 Calico,
+#28 stockage EFS, #29 `site.yml` complet et ansible-lint.
 
 ## 1. Ce qu'on obtient
 
@@ -27,6 +27,7 @@ Suite prévue : #28 EFS, #29 `site.yml` complet et ansible-lint.
 | CNI | Calico v3.33.0, pods en `192.168.0.0/16` (identique au local) |
 | Labels | `kube12/node=kube-1`, `kube-2`, `kube-3` sur chaque nœud |
 | Taint | aucun : kube-1 accepte aussi des pods |
+| Stockage | StorageClass `efs-sc` (Amazon EFS, volumes partagés `ReadWriteMany`) |
 
 Les mêmes conventions qu'en local (kind) : un manifest qui marche dans kind marche ici.
 
@@ -50,7 +51,10 @@ ansible/
     ├── common/                     prérequis des 3 nœuds
     ├── control_plane/              kubeadm init, kubeconfig, jeton de join
     ├── worker/                     kubeadm join
-    └── calico/                     réseau des pods
+    ├── calico/                     réseau des pods
+    └── efs_csi/                    helm, driver EFS CSI, StorageClass efs-sc
+tests/
+└── efs.yml                         test : un volume partagé entre kube-2 et kube-3
 ```
 
 **Règle** : aucune IP ni version en dur dans les rôles ; tout vient de `group_vars`.
@@ -125,6 +129,49 @@ Si la config kubeadm change après l'init, le manifest de l'apiserver est régé
 - Attend que les 3 nœuds soient `Ready`, puis affiche `kubectl get nodes`.
 - Encapsulation IP-in-IP : autorisée car le security group laisse passer tout le trafic entre nœuds.
 
+### `efs_csi` (#28)
+
+Ce qui existe avant, créé au provisionnement AWS :
+- un système de fichiers **EFS** chiffré, avec un mount target dans le subnet des nœuds ;
+- un security group qui n'autorise que le NFS (2049) depuis les nœuds ;
+- un rôle IAM `AmazonEFSCSIDriverPolicy` attaché aux 3 VM (profil d'instance), et
+  l'accès aux métadonnées de la VM ouvert aux pods (IMDSv2, hop limit 2) :
+  le driver récupère ses droits AWS **sans aucune clé stockée dans le cluster** ;
+- l'identifiant `efs_id` écrit dans `aws_outputs.yml`.
+
+Ce que fait le rôle, sur kube-1 :
+1. installe `helm` (même version qu'en local, somme de contrôle vérifiée) ;
+2. installe le chart `aws-efs-csi-driver` (version figée dans `defaults/main.yml`) dans `kube-system` ;
+3. crée la StorageClass `efs-sc` :
+
+| Paramètre | Valeur | Pourquoi |
+|---|---|---|
+| `provisioningMode` | `efs-ap` | chaque volume = un *access point* EFS, un dossier isolé sous `/dynamic` |
+| `reclaimPolicy` | `Retain` | supprimer un PVC ne supprime pas les données (base de données, backups) |
+| `volumeBindingMode` | `WaitForFirstConsumer` | identique au local |
+| `directoryPerms` | `700` | seul le propriétaire du volume y accède |
+
+En local (kind), `efs-sc` existe aussi mais repose sur `local-path` : pas de
+`ReadWriteMany` entre nœuds. Le partage entre nœuds ne se teste donc qu'en prod.
+
+Utilisation dans un manifest :
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: data}
+spec:
+  accessModes: [ReadWriteMany]   # ReadWriteOnce aussi possible
+  storageClassName: efs-sc
+  resources: {requests: {storage: 5Gi}}   # indicatif : EFS n'a pas de taille fixe
+```
+
+Test : `ansible-playbook -i inventory tests/efs.yml` crée un volume, l'écrit depuis un pod
+sur kube-2, le relit depuis un pod sur kube-3, vérifie le contenu puis nettoie tout.
+
+**Données conservées** : avec `Retain`, un volume supprimé laisse son PV et son access point.
+Pour vraiment libérer : `kubectl delete pv <nom>` puis supprimer l'access point dans la console EFS.
+
 ## 5. Accès SSH
 
 - kube-1 est joint directement sur son IP publique ; kube-2 et kube-3 sur leur IP privée,
@@ -148,6 +195,9 @@ Si la config kubeadm change après l'init, le manifest de l'apiserver est régé
 | `UNREACHABLE` juste après la création des VM | les VM démarrent encore | attendre 1 min et relancer le ping |
 | un worker n'arrive pas à joindre | jeton expiré (1 h) | relancer `site.yml` : un nouveau jeton est créé à chaque passage |
 | nœud `NotReady` | Calico pas encore démarré | `kubectl -n kube-system get pods -l k8s-app=calico-node` ; attendre ou relancer `site.yml` |
+| PVC `efs-sc` reste `Pending` | driver pas prêt, ou pas de pod qui l'utilise (`WaitForFirstConsumer`) | `kubectl -n kube-system get pods -l app.kubernetes.io/name=aws-efs-csi-driver` ; `kubectl describe pvc` |
+| pod bloqué en `ContainerCreating` avec un volume EFS | NFS bloqué ou mount target absent | vérifier le security group EFS (2049 depuis les nœuds) et `efs_id` |
+| `AccessDenied` dans les logs du driver | rôle IAM ou accès aux métadonnées | profil d'instance `kube-12-node` attaché, hop limit IMDS = 2 |
 | `kubectl` depuis le PC refuse le certificat | IP publique changée après l'init | l'IP de kube-1 est fixe (Elastic IP) ; si elle change, recréer le cluster |
 
 Commandes utiles sur kube-1 : `sudo crictl ps`, `sudo journalctl -u kubelet -f`,

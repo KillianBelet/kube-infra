@@ -22,3 +22,8 @@
   hosts: control_plane
   become: true
   roles: [calico]
+
+- name: Stockage partagé EFS (#28)
+  hosts: control_plane
+  become: true
+  roles: [efs_csi]

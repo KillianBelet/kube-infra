@@ -16,6 +16,7 @@ kubernetes_version: "1.36"
 kubernetes_release: 1.36.4 # même version que les nœuds kind
 pod_cidr: 192.168.0.0/16
 calico_version: v3.33.0
+helm_version: v4.3.0
 
 # Label posé sur chaque nœud, local comme AWS : les nodeSelector/affinity
 # des composants l'utilisent (ex. kube12/node: kube-3 pour Prometheus).
