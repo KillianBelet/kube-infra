@@ -1,0 +1,25 @@
+---
+- name: Nœud déjà dans le cluster ?
+  ansible.builtin.stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kubelet_conf
+
+- name: kubeadm join
+  when: not kubelet_conf.stat.exists
+  vars:
+    cp: "{{ groups['control_plane'] | first }}"
+  block:
+    - name: Configuration de join
+      ansible.builtin.template:
+        src: kubeadm-join.yaml.j2
+        dest: /etc/kubernetes/kubeadm-join.yaml
+        mode: "0600"
+
+    - name: Rejoindre le cluster
+      ansible.builtin.command: kubeadm join --config /etc/kubernetes/kubeadm-join.yaml
+      changed_when: true
+
+    - name: Supprimer la config (contient le jeton)
+      ansible.builtin.file:
+        path: /etc/kubernetes/kubeadm-join.yaml
+        state: absent

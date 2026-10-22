@@ -70,6 +70,15 @@ ansible -i inventory all -m ping                                  # clé ~/.ssh/
 ansible -i inventory all -m ping -e ssh_key_path=~/.ssh/id_ed25519  # ou sa propre clé
 ```
 
+Installer le cluster (kubeadm, containerd, Calico), rejouable sans risque :
+
+```bash
+ansible-galaxy collection install -r requirements.yml
+ansible-playbook -i inventory site.yml
+export KUBECONFIG=~/.kube-12/kubeconfig-aws   # récupéré par le playbook
+kubectl get nodes -L kube12/node
+```
+
 > **Windows : repo cloné sous `C:\…` et utilisé depuis WSL (`/mnt/c/…`)** — Ansible ignore
 > `ansible.cfg` dans ce cas (dossier « world writable »). Ça n'empêche pas `local.yml` de
 > fonctionner. Pour corriger : cloner le repo dans le home Linux (`~/`), ou

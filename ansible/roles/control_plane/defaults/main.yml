@@ -1,0 +1,10 @@
+---
+# Authentification OIDC de l'apiserver (#20) : laisser vide tant que dex n'existe pas.
+# Une fois renseigné, relancer site.yml : la config de l'apiserver est mise à jour.
+oidc_issuer_url: ""
+oidc_client_id: ""
+oidc_username_claim: email
+oidc_groups_claim: groups
+
+# kubeconfig admin récupéré sur la machine qui lance Ansible (hors du repo)
+kubeconfig_local_path: "{{ lookup('ansible.builtin.env', 'HOME') }}/.kube-12/kubeconfig-aws"
