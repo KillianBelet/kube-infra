@@ -24,7 +24,7 @@
   changed_when: true
 
 - name: Attendre l'apiserver
-  ansible.builtin.command: kubectl --kubeconfig /etc/kubernetes/admin.conf get --raw /control_plane_readyz
+  ansible.builtin.command: kubectl --kubeconfig /etc/kubernetes/admin.conf get --raw /readyz
   register: control_plane_readyz
   until: control_plane_readyz.rc == 0
   retries: 30
