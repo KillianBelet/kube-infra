@@ -1,6 +1,7 @@
 # T-CLO-901 — KUBE (groupe 12)
 
 Cluster Kubernetes 3 nœuds, déployé en GitOps, tout en HTTPS et OIDC.
+Documentation détaillée : [`docs/`](docs/README.md).
 Architecture : [Miro](https://miro.com/app/board/uXjVHigyph8=/) — suivi : [GitHub Project](https://github.com/orgs/EpitechMscProPromo2027/projects/549).
 
 | Nœud | Rôle | IP privée (prod) |
