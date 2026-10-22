@@ -49,17 +49,26 @@
     group: "{{ ansible_user }}"
     mode: "0600"
 
-- name: Récupérer le kubeconfig admin en local
-  ansible.builtin.fetch:
+- name: Lire le kubeconfig admin
+  ansible.builtin.slurp:
     src: /etc/kubernetes/admin.conf
-    dest: "{{ kubeconfig_local_path }}"
-    flat: true
+  register: admin_kubeconfig
 
-- name: Le kubeconfig local pointe sur l'IP publique
-  ansible.builtin.replace:
-    path: "{{ kubeconfig_local_path }}"
-    regexp: 'server: https://.*:6443'
-    replace: "server: https://{{ public_ip }}:6443"
+- name: Dossier local du kubeconfig
+  ansible.builtin.file:
+    path: "{{ kubeconfig_local_path | dirname }}"
+    state: directory
+    mode: "0755" # même mode que dans local.yml
+  delegate_to: localhost
+  become: false
+
+- name: kubeconfig admin en local, pointant sur l'IP publique
+  ansible.builtin.copy:
+    dest: "{{ kubeconfig_local_path }}"
+    content: >-
+      {{ admin_kubeconfig.content | b64decode
+         | regex_replace('server: https://.*:6443', 'server: https://' ~ public_ip ~ ':6443') }}
+    mode: "0600"
   delegate_to: localhost
   become: false
 

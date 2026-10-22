@@ -3,6 +3,7 @@
 # Chacun peut utiliser sa propre clé si elle a été autorisée via team-access.yml :
 #   -e ssh_key_path=~/.ssh/id_ed25519
 ansible_user: ubuntu
+ansible_python_interpreter: auto_silent
 ssh_key_path: ~/.ssh/kube-12
 ansible_ssh_private_key_file: "{{ ssh_key_path }}"
 
