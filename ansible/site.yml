@@ -3,22 +3,22 @@
 #   ansible-playbook -i inventory site.yml
 # Rejouable : un second passage ne change rien.
 
-- name: Prérequis des nœuds (#2)
+- name: Prérequis des nœuds (#24)
   hosts: all
   become: true
   roles: [common]
 
-- name: Control plane sur kube-1 (#3)
+- name: Control plane sur kube-1 (#25)
   hosts: control_plane
   become: true
   roles: [control_plane]
 
-- name: Workers kube-2 et kube-3 (#4)
+- name: Workers kube-2 et kube-3 (#26)
   hosts: workers
   become: true
   roles: [worker]
 
-- name: Réseau des pods (#5)
+- name: Réseau des pods (#27)
   hosts: control_plane
   become: true
   roles: [calico]

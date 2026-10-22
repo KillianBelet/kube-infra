@@ -1,5 +1,5 @@
 ---
-# Authentification OIDC de l'apiserver (#20) : laisser vide tant que dex n'existe pas.
+# Authentification OIDC de l'apiserver (#42) : laisser vide tant que dex n'existe pas.
 # Une fois renseigné, relancer site.yml : la config de l'apiserver est mise à jour.
 oidc_issuer_url: ""
 oidc_client_id: ""

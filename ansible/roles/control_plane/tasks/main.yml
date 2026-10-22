@@ -16,7 +16,7 @@
   when: not admin_conf.stat.exists
   changed_when: true
 
-# Config modifiée après l'init (ex. OIDC, #20) : on régénère le manifest de l'apiserver
+# Config modifiée après l'init (ex. OIDC, #42) : on régénère le manifest de l'apiserver
 - name: Mettre à jour le manifest de l'apiserver
   ansible.builtin.command: >-
     kubeadm init phase control-plane apiserver --config /etc/kubernetes/kubeadm-config.yaml
@@ -72,7 +72,7 @@
   delegate_to: localhost
   become: false
 
-# ---------- Jeton pour les workers (#4) ----------
+# ---------- Jeton pour les workers (#26) ----------
 - name: Commande de join (jeton valable 1 h)
   ansible.builtin.command: kubeadm token create --ttl 1h --print-join-command
   register: join_cmd
