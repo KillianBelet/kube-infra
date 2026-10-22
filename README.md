@@ -58,6 +58,9 @@ Les versions (Kubernetes 1.36, Calico, kind, kubectl, helm) sont figées dans
 
 ## Prod (AWS) : accès aux nœuds
 
+Créer, éteindre ou détruire l'infrastructure AWS (VPC, 3 VM, EFS…) : voir
+[`docs/infra-aws.md`](docs/infra-aws.md). Ensuite :
+
 L'inventaire `ansible/inventory/` est fixe : groupes `control_plane` (kube-1) et `workers`
 (kube-2, kube-3). Les IP privées viennent de `cluster.yml` ; la seule valeur qui change est
 l'IP publique de kube-1, à mettre dans `inventory/group_vars/all/aws_outputs.yml`

@@ -1,0 +1,8 @@
+---
+# Généré par provision-aws.yml — ne pas modifier à la main.
+public_ip: {{ eip.public_ip }}
+base_domain: {{ eip.public_ip }}.sslip.io
+vpc_id: {{ vpc.vpc.id }}
+subnet_id: {{ subnet.subnet.id }}
+sg_nodes_id: {{ sg_nodes.group_id }}
+efs_id: {{ efs.efs.file_system_id }}

@@ -61,8 +61,8 @@ tests/
 
 ## 3. Utilisation
 
-Prérequis : Ansible (WSL Ubuntu, macOS ou Linux), la clé SSH autorisée sur les nœuds,
-l'IP publique de kube-1.
+Prérequis : les VM existent (voir [infra-aws.md](infra-aws.md)), Ansible (WSL Ubuntu, macOS
+ou Linux), la clé SSH autorisée sur les nœuds, l'IP publique de kube-1.
 
 ```bash
 cd ansible
