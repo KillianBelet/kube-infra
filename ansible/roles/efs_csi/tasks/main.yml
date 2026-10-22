@@ -37,7 +37,7 @@
   changed_when: false
   failed_when: efs_csi_release.rc != 0 and 'not found' not in efs_csi_release.stderr
   environment:
-    PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+    PATH: "/usr/local/bin:{{ ansible_facts.env.PATH }}"
 
 - name: Installer ou mettre à jour le driver EFS {{ efs_csi_chart_version }}
   ansible.builtin.command: >-
@@ -49,7 +49,7 @@
     or (efs_csi_release.stdout | from_json).version != efs_csi_chart_version
   changed_when: true
   environment:
-    PATH: "/usr/local/bin:{{ ansible_env.PATH }}"
+    PATH: "/usr/local/bin:{{ ansible_facts.env.PATH }}"
 
 # ---------- StorageClass ----------
 # Même nom qu'en local (local.yml) : les manifests de l'application ne changent pas.
