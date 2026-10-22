@@ -10,23 +10,23 @@
     quiet: true
 
 # ---------- helm sur kube-1 (même version qu'en local) ----------
-- name: helm {{ helm_version }} (archive)
+- name: Télécharger l'archive helm {{ helm_version }}
   ansible.builtin.get_url:
     url: "https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz"
     checksum: "sha256:https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz.sha256sum"
     dest: "/opt/helm-{{ helm_version }}.tar.gz"
     mode: "0644"
-  register: helm_archive
+  register: efs_csi_helm_archive
 
-- name: helm {{ helm_version }} (binaire)
+- name: Extraire le binaire helm {{ helm_version }}
   ansible.builtin.unarchive:
-    src: "{{ helm_archive.dest }}"
+    src: "{{ efs_csi_helm_archive.dest }}"
     dest: /usr/local/bin
     remote_src: true
     include: [linux-amd64/helm]
     extra_opts: [--strip-components=1]
     mode: "0755"
-  when: helm_archive is changed or not ('/usr/local/bin/helm' is file)
+  when: efs_csi_helm_archive is changed or not ('/usr/local/bin/helm' is file)
 
 # ---------- Driver CSI ----------
 - name: Driver aws-efs-csi-driver {{ efs_csi_chart_version }}
@@ -36,7 +36,7 @@
     chart_repo_url: "{{ efs_csi_chart_repo }}"
     chart_version: "{{ efs_csi_chart_version }}"
     release_namespace: kube-system
-    kubeconfig: "{{ kubeconfig }}"
+    kubeconfig: "{{ efs_csi_kubeconfig }}"
     binary_path: /usr/local/bin/helm
     wait: true
     wait_timeout: 5m
@@ -46,7 +46,7 @@
 # Provisioning dynamique : un access point EFS (dossier isolé) par volume.
 - name: StorageClass {{ storage_class }}
   ansible.builtin.command:
-    cmd: kubectl --kubeconfig {{ kubeconfig }} apply -f -
+    cmd: kubectl --kubeconfig {{ efs_csi_kubeconfig }} apply -f -
     stdin: |
       apiVersion: storage.k8s.io/v1
       kind: StorageClass
@@ -62,5 +62,5 @@
         fileSystemId: {{ efs_id }}
         directoryPerms: "700"
         basePath: /dynamic
-  register: sc
-  changed_when: "'unchanged' not in sc.stdout"
+  register: efs_csi_sc
+  changed_when: "'unchanged' not in efs_csi_sc.stdout"

@@ -83,6 +83,16 @@ Avec sa propre clé SSH plutôt que `~/.ssh/kube-12` : ajouter `-e ssh_key_path=
 
 `site.yml` se rejoue sans risque : un nœud déjà initialisé ou déjà dans le cluster est sauté.
 
+Avant chaque PR qui touche `ansible/` :
+
+```bash
+ansible-lint site.yml local.yml local-down.yml tests/efs.yml roles   # doit afficher « Passed »
+```
+
+Conventions imposées par ansible-lint (profil `production`) : variables d'un rôle préfixées
+par son nom (`control_plane_join_token`, `efs_csi_kubeconfig`…), noms de tâches commençant par
+une majuscule, variables Jinja seulement en fin de nom de tâche.
+
 ## 4. Ce que fait chaque rôle, et pourquoi
 
 ### `common` (#24) : les 3 nœuds
@@ -111,8 +121,8 @@ Le kubelet redémarre en boucle tant que `kubeadm init`/`join` n'a pas eu lieu :
   (adresse remplacée par l'IP publique ; fichier hors du repo, à ne jamais committer).
 - Crée un jeton de join valable 1 h, transmis aux workers.
 
-**OIDC (#42)** : renseigner dans les variables du rôle `oidc_issuer_url` et `oidc_client_id`
-(et si besoin `oidc_username_claim`, `oidc_groups_claim`), puis relancer `site.yml`.
+**OIDC (#42)** : renseigner dans les variables du rôle `control_plane_oidc_issuer_url` et `control_plane_oidc_client_id`
+(et si besoin `control_plane_oidc_username_claim`, `control_plane_oidc_groups_claim`), puis relancer `site.yml`.
 Si la config kubeadm change après l'init, le manifest de l'apiserver est régénéré
 (`kubeadm init phase control-plane apiserver`). Pas besoin de toucher aux fichiers du rôle.
 

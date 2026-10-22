@@ -1,4 +1,4 @@
 ---
 efs_csi_chart_repo: https://kubernetes-sigs.github.io/aws-efs-csi-driver/
 efs_csi_chart_version: 4.5.1 # driver 3.5.1
-kubeconfig: /etc/kubernetes/admin.conf
+efs_csi_kubeconfig: /etc/kubernetes/admin.conf
