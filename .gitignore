@@ -4,3 +4,6 @@
 .vault_pass*
 kubeconfig*
 *.retry
+
+# Généré par provision-aws.yml (IP publique du cluster)
+ansible/inventory/group_vars/all/aws_outputs.yml

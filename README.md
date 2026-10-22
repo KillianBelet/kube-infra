@@ -53,7 +53,22 @@ ansible-playbook local-down.yml   # supprime le cluster
 ```
 
 Les versions (Kubernetes 1.36, Calico, kind, kubectl, helm) sont figées dans
-`ansible/local.yml` et `ansible/group_vars/all/cluster.yml` : ne pas les changer sans prévenir l'équipe.
+`ansible/local.yml` et `ansible/inventory/group_vars/all/cluster.yml` : ne pas les changer sans prévenir l'équipe.
+
+## Prod (AWS) : accès aux nœuds
+
+L'inventaire `ansible/inventory/` est fixe : groupes `control_plane` (kube-1) et `workers`
+(kube-2, kube-3). Les IP privées viennent de `cluster.yml` ; la seule valeur qui change est
+l'IP publique de kube-1, à mettre dans `inventory/group_vars/all/aws_outputs.yml`
+(ignoré par git, voir `aws_outputs.yml.example`). Les workers sont joints en rebond par kube-1.
+
+```bash
+cd ansible
+cp inventory/group_vars/all/aws_outputs.yml.example inventory/group_vars/all/aws_outputs.yml
+# y mettre l'IP publique de kube-1, puis :
+ansible -i inventory all -m ping                                  # clé ~/.ssh/kube-12
+ansible -i inventory all -m ping -e ssh_key_path=~/.ssh/id_ed25519  # ou sa propre clé
+```
 
 > **Windows : repo cloné sous `C:\…` et utilisé depuis WSL (`/mnt/c/…`)** — Ansible ignore
 > `ansible.cfg` dans ce cas (dossier « world writable »). Ça n'empêche pas `local.yml` de
