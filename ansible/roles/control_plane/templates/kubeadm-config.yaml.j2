@@ -1,0 +1,44 @@
+# Généré par Ansible (rôle control_plane)
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: {{ private_ip }}
+  bindPort: 6443
+nodeRegistration:
+  name: {{ inventory_hostname }}
+  criSocket: unix:///run/containerd/containerd.sock
+  # kube-1 est aussi worker : pas de taint control-plane
+  taints: []
+  kubeletExtraArgs:
+    - name: node-labels
+      value: "{{ node_label_key }}={{ inventory_hostname }}"
+    - name: node-ip
+      value: "{{ private_ip }}"
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+kubernetesVersion: v{{ kubernetes_release }}
+clusterName: kube-12
+controlPlaneEndpoint: "{{ private_ip }}:6443"
+networking:
+  podSubnet: {{ pod_cidr }}
+apiServer:
+  certSANs:
+    - {{ private_ip }}
+    - {{ public_ip }}
+    - {{ inventory_hostname }}
+{% if oidc_issuer_url %}
+  extraArgs:
+    - name: oidc-issuer-url
+      value: "{{ oidc_issuer_url }}"
+    - name: oidc-client-id
+      value: "{{ oidc_client_id }}"
+    - name: oidc-username-claim
+      value: "{{ oidc_username_claim }}"
+    - name: oidc-groups-claim
+      value: "{{ oidc_groups_claim }}"
+{% endif %}
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: systemd

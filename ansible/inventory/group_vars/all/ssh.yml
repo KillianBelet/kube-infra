@@ -1,0 +1,19 @@
+---
+# Accès SSH aux nœuds (utilisateur par défaut de l'AMI Ubuntu).
+# Chacun peut utiliser sa propre clé si elle a été autorisée via team-access.yml :
+#   -e ssh_key_path=~/.ssh/id_ed25519
+ansible_user: ubuntu
+ansible_python_interpreter: auto_silent
+ssh_key_path: ~/.ssh/kube-12
+ansible_ssh_private_key_file: "{{ ssh_key_path }}"
+
+# Empreintes SSH des nœuds dans un fichier dédié : les VM recréées gardent les
+# mêmes IP privées, on évite ainsi les conflits avec ~/.ssh/known_hosts.
+# Supprimé par destroy-aws.yml ; empreinte acceptée automatiquement à la 1re connexion.
+ssh_known_hosts_file: ~/.ssh/kube-12_known_hosts
+ssh_host_key_opts: >-
+  -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile={{ ssh_known_hosts_file }}
+ansible_ssh_extra_args: "{{ ssh_host_key_opts }}"
+
+# IP privée du nœud courant, tirée de la liste `nodes` (cluster.yml)
+private_ip: "{{ (nodes | selectattr('name', 'equalto', inventory_hostname) | first).private_ip }}"

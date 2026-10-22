@@ -1,0 +1,3 @@
+---
+# kube-1 est joint directement sur son IP publique fixe (Elastic IP)
+ansible_host: "{{ public_ip }}"

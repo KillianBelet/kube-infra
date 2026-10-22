@@ -1,0 +1,86 @@
+---
+- name: Configuration kubeadm
+  ansible.builtin.template:
+    src: kubeadm-config.yaml.j2
+    dest: /etc/kubernetes/kubeadm-config.yaml
+    mode: "0600"
+  register: kubeadm_config
+
+- name: Cluster déjà initialisé ?
+  ansible.builtin.stat:
+    path: /etc/kubernetes/admin.conf
+  register: admin_conf
+
+- name: kubeadm init
+  ansible.builtin.command: kubeadm init --config /etc/kubernetes/kubeadm-config.yaml
+  when: not admin_conf.stat.exists
+  changed_when: true
+
+# Config modifiée après l'init (ex. OIDC, #42) : on régénère le manifest de l'apiserver
+- name: Mettre à jour le manifest de l'apiserver
+  ansible.builtin.command: >-
+    kubeadm init phase control-plane apiserver --config /etc/kubernetes/kubeadm-config.yaml
+  when: admin_conf.stat.exists and kubeadm_config is changed
+  changed_when: true
+
+- name: Attendre l'apiserver
+  ansible.builtin.command: kubectl --kubeconfig /etc/kubernetes/admin.conf get --raw /readyz
+  register: readyz
+  until: readyz.rc == 0
+  retries: 30
+  delay: 5
+  changed_when: false
+
+# ---------- kubectl ----------
+- name: Dossier .kube de {{ ansible_user }}
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/.kube"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0700"
+
+- name: kubeconfig admin pour {{ ansible_user }} sur kube-1
+  ansible.builtin.copy:
+    src: /etc/kubernetes/admin.conf
+    dest: "/home/{{ ansible_user }}/.kube/config"
+    remote_src: true
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0600"
+
+- name: Lire le kubeconfig admin
+  ansible.builtin.slurp:
+    src: /etc/kubernetes/admin.conf
+  register: admin_kubeconfig
+
+- name: Dossier local du kubeconfig
+  ansible.builtin.file:
+    path: "{{ kubeconfig_local_path | dirname }}"
+    state: directory
+    mode: "0755" # même mode que dans local.yml
+  delegate_to: localhost
+  become: false
+
+- name: kubeconfig admin en local, pointant sur l'IP publique
+  ansible.builtin.copy:
+    dest: "{{ kubeconfig_local_path }}"
+    content: >-
+      {{ admin_kubeconfig.content | b64decode
+         | regex_replace('server: https://.*:6443', 'server: https://' ~ public_ip ~ ':6443') }}
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+
+# ---------- Jeton pour les workers (#26) ----------
+- name: Commande de join (jeton valable 1 h)
+  ansible.builtin.command: kubeadm token create --ttl 1h --print-join-command
+  register: join_cmd
+  changed_when: false
+
+- name: Mémoriser jeton et hash de la CA
+  ansible.builtin.set_fact:
+    join_token: >-
+      {{ join_cmd.stdout | regex_search('--token (\S+)', '\1') | first }}
+    join_ca_hash: >-
+      {{ join_cmd.stdout | regex_search('--discovery-token-ca-cert-hash (\S+)', '\1') | first }}

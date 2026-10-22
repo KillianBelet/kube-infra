@@ -1,0 +1,5 @@
+---
+# Copier en aws_outputs.yml (ignoré par git). Sur la machine qui provisionne AWS,
+# ce fichier est généré automatiquement. Les autres demandent l'IP à l'équipe.
+public_ip: 203.0.113.10
+base_domain: 203.0.113.10.sslip.io

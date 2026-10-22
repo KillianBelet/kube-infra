@@ -1,0 +1,4 @@
+---
+# Version exacte des paquets (dépôt pkgs.k8s.io) ; kubernetes_release est dans cluster.yml
+kubernetes_package_version: "{{ kubernetes_release }}-1.1"
+kubernetes_packages: [kubelet, kubeadm, kubectl]
