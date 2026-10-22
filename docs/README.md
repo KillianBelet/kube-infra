@@ -3,6 +3,7 @@
 | Document | Contenu |
 |---|---|
 | [../README.md](../README.md) | vue d'ensemble, environnement local (kind), prise en main |
+| [infra-aws.md](infra-aws.md) | infrastructure AWS : ce qui est créé, prérequis, créer / éteindre / détruire, accès équipe, coûts |
 | [cluster-ansible.md](cluster-ansible.md) | cluster de prod : inventaire, rôles Ansible, choix techniques, dépannage |
 
 Chaque composant ajouté au cluster (Traefik, ArgoCD, Keycloak…) a sa page ici :

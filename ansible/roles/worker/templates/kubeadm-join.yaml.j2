@@ -4,9 +4,9 @@ kind: JoinConfiguration
 discovery:
   bootstrapToken:
     apiServerEndpoint: "{{ hostvars[cp].private_ip }}:6443"
-    token: "{{ hostvars[cp].join_token }}"
+    token: "{{ hostvars[cp].control_plane_join_token }}"
     caCertHashes:
-      - "{{ hostvars[cp].join_ca_hash }}"
+      - "{{ hostvars[cp].control_plane_join_ca_hash }}"
 nodeRegistration:
   name: {{ inventory_hostname }}
   criSocket: unix:///run/containerd/containerd.sock

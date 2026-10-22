@@ -1,0 +1,207 @@
+---
+# Provisionne l'infrastructure AWS du cluster :
+# VPC, subnet, Internet gateway, security groups, rôle IAM (EFS CSI),
+# 3 instances EC2, Elastic IP sur kube-1, Amazon EFS.
+# Génère ensuite inventory/group_vars/all/aws_outputs.yml (IP publique, EFS…).
+#
+#   ansible-playbook provision-aws.yml
+#
+# Rejouable : un second passage ne recrée rien.
+- name: Provisionner l'infrastructure AWS
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - inventory/group_vars/all/aws.yml
+    - inventory/group_vars/all/ssh.yml
+    - inventory/group_vars/all/cluster.yml
+  module_defaults:
+    group/amazon.aws.aws:
+      region: "{{ aws_region }}"
+    group/community.aws.aws:
+      region: "{{ aws_region }}"
+
+  tasks:
+    # ---------- Réseau ----------
+    - name: VPC
+      amazon.aws.ec2_vpc_net:
+        name: "{{ project }}-vpc"
+        cidr_block: "{{ vpc_cidr }}"
+        dns_hostnames: true
+        dns_support: true
+        tags: "{{ common_tags }}"
+      register: vpc
+
+    - name: Internet gateway
+      amazon.aws.ec2_vpc_igw:
+        vpc_id: "{{ vpc.vpc.id }}"
+        tags: "{{ common_tags | combine({'Name': project ~ '-igw'}) }}"
+      register: igw
+
+    - name: Subnet public des nœuds
+      amazon.aws.ec2_vpc_subnet:
+        vpc_id: "{{ vpc.vpc.id }}"
+        cidr: "{{ subnet_cidr }}"
+        az: "{{ aws_az }}"
+        map_public: true
+        tags: "{{ common_tags | combine({'Name': project ~ '-subnet'}) }}"
+      register: subnet
+
+    - name: Table de routage vers Internet
+      amazon.aws.ec2_vpc_route_table:
+        vpc_id: "{{ vpc.vpc.id }}"
+        subnets: ["{{ subnet.subnet.id }}"]
+        routes:
+          - dest: 0.0.0.0/0
+            gateway_id: "{{ igw.gateway_id }}"
+        tags: "{{ common_tags | combine({'Name': project ~ '-rt'}) }}"
+
+    # ---------- Security groups ----------
+    - name: Security group des nœuds
+      amazon.aws.ec2_security_group:
+        name: "{{ project }}-nodes"
+        description: Noeuds Kubernetes kube-12
+        vpc_id: "{{ vpc.vpc.id }}"
+        rules:
+          - proto: all
+            group_name: "{{ project }}-nodes"
+            rule_desc: trafic intra-cluster
+          - proto: tcp
+            ports: [22, 6443]
+            cidr_ip: "{{ admin_cidrs }}"
+            rule_desc: SSH et API admin
+          - proto: tcp
+            ports: "{{ public_tcp_ports }}"
+            cidr_ip: 0.0.0.0/0
+            rule_desc: HTTP/HTTPS Traefik
+        tags: "{{ common_tags | combine({'Name': project ~ '-nodes'}) }}"
+      register: sg_nodes
+
+    - name: Security group EFS (NFS depuis les nœuds)
+      amazon.aws.ec2_security_group:
+        name: "{{ project }}-efs"
+        description: EFS kube-12, NFS depuis les noeuds
+        vpc_id: "{{ vpc.vpc.id }}"
+        rules:
+          - proto: tcp
+            ports: [2049]
+            group_id: "{{ sg_nodes.group_id }}"
+            rule_desc: NFS depuis les noeuds
+        tags: "{{ common_tags | combine({'Name': project ~ '-efs'}) }}"
+      register: sg_efs
+
+    # ---------- IAM (driver CSI EFS) ----------
+    - name: Rôle IAM des nœuds (driver EFS CSI)
+      amazon.aws.iam_role:
+        name: "{{ project }}-node"
+        assume_role_policy_document:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal: {Service: ec2.amazonaws.com}
+              Action: sts:AssumeRole
+        managed_policies:
+          - arn:aws:iam::aws:policy/service-role/AmazonEFSCSIDriverPolicy
+        create_instance_profile: true
+        tags: "{{ common_tags }}"
+
+    # ---------- Clé SSH ----------
+    - name: Dossier ~/.ssh
+      ansible.builtin.file:
+        path: "{{ ssh_key_path | dirname }}"
+        state: directory
+        mode: "0700"
+
+    - name: Paire de clés SSH locale
+      community.crypto.openssh_keypair:
+        path: "{{ ssh_key_path }}"
+        type: ed25519
+        comment: "{{ project }}"
+
+    - name: Clé publique importée dans EC2
+      amazon.aws.ec2_key:
+        name: "{{ ssh_key_name }}"
+        key_material: "{{ lookup('ansible.builtin.file', ssh_key_path ~ '.pub') }}"
+        tags: "{{ common_tags }}"
+
+    # ---------- Instances ----------
+    - name: Dernière AMI Ubuntu 24.04
+      amazon.aws.ec2_ami_info:
+        owners: ["{{ ami_owner }}"]
+        filters:
+          name: "{{ ami_name_pattern }}"
+          architecture: x86_64
+          state: available
+      register: amis
+
+    - name: Instances EC2 kube-1 / kube-2 / kube-3
+      amazon.aws.ec2_instance:
+        name: "{{ item.name }}"
+        instance_type: "{{ instance_type }}"
+        image_id: "{{ (amis.images | sort(attribute='creation_date') | last).image_id }}"
+        key_name: "{{ ssh_key_name }}"
+        iam_instance_profile: "{{ project }}-node"
+        network_interfaces:
+          - device_index: 0
+            subnet_id: "{{ subnet.subnet.id }}"
+            private_ip_address: "{{ item.private_ip }}"
+            assign_public_ip: true
+            groups: ["{{ sg_nodes.group_id }}"]
+        source_dest_check: false # Calico
+        volumes:
+          - device_name: /dev/sda1
+            ebs:
+              volume_size: "{{ root_volume_gb }}"
+              volume_type: gp3
+              delete_on_termination: true
+        metadata_options:
+          http_tokens: required
+          http_put_response_hop_limit: 2 # pods (driver CSI) -> IMDS
+        filters:
+          "tag:Name": "{{ item.name }}"
+          "tag:Project": "{{ project }}"
+          instance-state-name: [pending, running, stopping, stopped]
+        tags: "{{ common_tags | combine({'Role': item.role}) }}"
+        state: running
+        wait: true
+      loop: "{{ nodes }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: instances
+
+    - name: Elastic IP fixe sur kube-1
+      amazon.aws.ec2_eip:
+        device_id: "{{ (instances.results | selectattr('item.name', 'eq', 'kube-1') | first).instance_ids[0] }}"
+        in_vpc: true
+        reuse_existing_ip_allowed: true
+        tag_name: Name
+        tag_value: "{{ project }}-kube-1"
+        tags: "{{ common_tags | combine({'Name': project ~ '-kube-1'}) }}"
+      register: eip
+
+    # ---------- EFS ----------
+    - name: Amazon EFS
+      community.aws.efs:
+        name: "{{ project }}-efs"
+        encrypt: true
+        targets:
+          - subnet_id: "{{ subnet.subnet.id }}"
+            security_groups: ["{{ sg_efs.group_id }}"]
+        tags: "{{ common_tags | combine({'Name': project ~ '-efs'}) }}"
+        wait: true
+      register: efs
+
+    # ---------- Sorties ----------
+    - name: Variables générées (IP, EFS…)
+      ansible.builtin.template:
+        src: templates/aws_outputs.yml.j2
+        dest: "{{ playbook_dir }}/inventory/group_vars/all/aws_outputs.yml"
+        mode: "0644"
+
+    - name: Récapitulatif
+      ansible.builtin.debug:
+        msg:
+          - "kube-1 (IP publique fixe) : {{ eip.public_ip }}"
+          - "Domaine : *.{{ eip.public_ip }}.sslip.io"
+          - "EFS : {{ efs.efs.file_system_id }}"
+          - "SSH : ssh -i {{ ssh_key_path }} {{ ansible_user }}@{{ eip.public_ip }}"

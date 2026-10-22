@@ -20,14 +20,13 @@
     kind_version: v0.33.0
     kind_node_image: kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed
     kubectl_version: v1.36.5
-    helm_version: v4.3.0
-    bin_dir: "{{ ansible_env.HOME }}/.local/bin"
-    work_dir: "{{ ansible_env.HOME }}/.kube-12"
-    os: "{{ ansible_system | lower }}" # linux / darwin
-    arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}[ansible_architecture] }}"
+    bin_dir: "{{ lookup('ansible.builtin.env', 'HOME') }}/.local/bin"
+    work_dir: "{{ lookup('ansible.builtin.env', 'HOME') }}/.kube-12"
+    os: "{{ ansible_facts.system | lower }}" # linux / darwin
+    arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}[ansible_facts.architecture] }}"
     kubectl: "{{ bin_dir }}/kubectl --context kind-{{ kind_cluster_name }}"
   environment:
-    PATH: "{{ bin_dir }}:{{ ansible_env.PATH }}"
+    PATH: "{{ bin_dir }}:{{ lookup('ansible.builtin.env', 'PATH') }}"
 
   tasks:
     # ---------- Prérequis ----------
@@ -43,21 +42,21 @@
       loop: ["{{ bin_dir }}", "{{ work_dir }}"]
 
     # ---------- Outils ----------
-    - name: kind {{ kind_version }}
+    - name: Installer kind {{ kind_version }}
       ansible.builtin.get_url:
         url: "https://kind.sigs.k8s.io/dl/{{ kind_version }}/kind-{{ os }}-{{ arch }}"
         checksum: "sha256:https://kind.sigs.k8s.io/dl/{{ kind_version }}/kind-{{ os }}-{{ arch }}.sha256sum"
         dest: "{{ bin_dir }}/kind"
         mode: "0755"
 
-    - name: kubectl {{ kubectl_version }}
+    - name: Installer kubectl {{ kubectl_version }}
       ansible.builtin.get_url:
         url: "https://dl.k8s.io/release/{{ kubectl_version }}/bin/{{ os }}/{{ arch }}/kubectl"
         checksum: "sha256:https://dl.k8s.io/release/{{ kubectl_version }}/bin/{{ os }}/{{ arch }}/kubectl.sha256"
         dest: "{{ bin_dir }}/kubectl"
         mode: "0755"
 
-    - name: helm {{ helm_version }} (archive)
+    - name: Télécharger l'archive helm {{ helm_version }}
       ansible.builtin.get_url:
         url: "https://get.helm.sh/helm-{{ helm_version }}-{{ os }}-{{ arch }}.tar.gz"
         checksum: "sha256:https://get.helm.sh/helm-{{ helm_version }}-{{ os }}-{{ arch }}.tar.gz.sha256sum"
@@ -65,7 +64,7 @@
         mode: "0644"
       register: helm_archive
 
-    - name: helm {{ helm_version }} (binaire)
+    - name: Extraire le binaire helm {{ helm_version }}
       ansible.builtin.unarchive:
         src: "{{ helm_archive.dest }}"
         dest: "{{ bin_dir }}"
@@ -114,7 +113,7 @@
     # Sur AWS, efs-sc est servi par le driver EFS CSI. En local, même nom de
     # StorageClass, servi par le provisioner local-path fourni avec kind :
     # les manifests de l'application sont identiques dans les deux environnements.
-    - name: StorageClass {{ storage_class }} (simulation d'EFS)
+    - name: StorageClass simulant EFS {{ storage_class }}
       ansible.builtin.command:
         cmd: "{{ kubectl }} apply -f -"
         stdin: |

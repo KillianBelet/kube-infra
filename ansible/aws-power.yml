@@ -1,0 +1,29 @@
+---
+# Arrête ou redémarre les 3 nœuds pour économiser les crédits.
+#
+#   ansible-playbook aws-power.yml -e power=stopped
+#   ansible-playbook aws-power.yml -e power=running
+#
+# Les disques, l'EFS et l'Elastic IP de kube-1 sont conservés.
+- name: Allumer / éteindre les nœuds
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - inventory/group_vars/all/aws.yml
+    - inventory/group_vars/all/ssh.yml
+    - inventory/group_vars/all/cluster.yml
+  tasks:
+    - name: Vérifier le paramètre
+      ansible.builtin.assert:
+        that: power is defined and power in ['running', 'stopped']
+        fail_msg: "Utiliser -e power=stopped ou -e power=running"
+
+    - name: Changer l'état des instances
+      amazon.aws.ec2_instance:
+        region: "{{ aws_region }}"
+        filters:
+          "tag:Project": "{{ project }}"
+          instance-state-name: [pending, running, stopping, stopped]
+        state: "{{ power }}"
+        wait: true

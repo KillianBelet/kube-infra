@@ -1,0 +1,14 @@
+---
+# Donne l'accès SSH à l'équipe sur les 3 nœuds (utilisateur ubuntu).
+# Ajouter / retirer une personne : modifier files/team_authorized_keys puis relancer.
+#
+#   ansible-playbook -i inventory team-access.yml
+- name: Accès SSH de l'équipe
+  hosts: all
+  become: true
+  tasks:
+    - name: Clés publiques de l'équipe + clé d'admin kube-12
+      ansible.posix.authorized_key:
+        user: "{{ ansible_user }}"
+        key: "{{ lookup('ansible.builtin.file', 'files/team_authorized_keys') ~ '\n' ~ lookup('ansible.builtin.file', ssh_key_path ~ '.pub') }}"
+        exclusive: true

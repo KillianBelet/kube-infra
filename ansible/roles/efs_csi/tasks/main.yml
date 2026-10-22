@@ -1,0 +1,76 @@
+---
+# Volumes persistants partagés (ReadWriteMany) sur Amazon EFS.
+# L'EFS, ses mount targets et le rôle IAM des nœuds sont créés au provisionnement AWS ;
+# le driver obtient ses droits via le profil d'instance (IMDSv2, hop limit 2).
+
+- name: Identifiant de l'EFS connu
+  ansible.builtin.assert:
+    that: efs_id is defined and efs_id is match('^fs-')
+    fail_msg: "efs_id manquant : il est écrit dans inventory/group_vars/all/aws_outputs.yml au provisionnement"
+    quiet: true
+
+# ---------- helm sur kube-1 (même version qu'en local) ----------
+- name: Télécharger l'archive helm {{ helm_version }}
+  ansible.builtin.get_url:
+    url: "https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz"
+    checksum: "sha256:https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz.sha256sum"
+    dest: "/opt/helm-{{ helm_version }}.tar.gz"
+    mode: "0644"
+  register: efs_csi_helm_archive
+
+- name: Extraire le binaire helm {{ helm_version }}
+  ansible.builtin.unarchive:
+    src: "{{ efs_csi_helm_archive.dest }}"
+    dest: /usr/local/bin
+    remote_src: true
+    include: [linux-amd64/helm]
+    extra_opts: [--strip-components=1]
+    mode: "0755"
+  when: efs_csi_helm_archive is changed or not ('/usr/local/bin/helm' is file)
+
+# ---------- Driver CSI ----------
+# Commandes helm directes : le module kubernetes.core.helm n'est pas compatible Helm 4.
+- name: Version installée du driver EFS
+  ansible.builtin.command: >-
+    helm get metadata aws-efs-csi-driver -n kube-system -o json --kubeconfig {{ efs_csi_kubeconfig }}
+  register: efs_csi_release
+  changed_when: false
+  failed_when: efs_csi_release.rc != 0 and 'not found' not in efs_csi_release.stderr
+  environment:
+    PATH: "/usr/local/bin:{{ ansible_facts.env.PATH }}"
+
+- name: Installer ou mettre à jour le driver EFS {{ efs_csi_chart_version }}
+  ansible.builtin.command: >-
+    helm upgrade --install aws-efs-csi-driver aws-efs-csi-driver
+    --repo {{ efs_csi_chart_repo }} --version {{ efs_csi_chart_version }}
+    -n kube-system --kubeconfig {{ efs_csi_kubeconfig }} --wait --timeout 5m
+  when: >-
+    efs_csi_release.rc != 0
+    or (efs_csi_release.stdout | from_json).version != efs_csi_chart_version
+  changed_when: true
+  environment:
+    PATH: "/usr/local/bin:{{ ansible_facts.env.PATH }}"
+
+# ---------- StorageClass ----------
+# Même nom qu'en local (local.yml) : les manifests de l'application ne changent pas.
+# Provisioning dynamique : un access point EFS (dossier isolé) par volume.
+- name: StorageClass {{ storage_class }}
+  ansible.builtin.command:
+    cmd: kubectl --kubeconfig {{ efs_csi_kubeconfig }} apply -f -
+    stdin: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: {{ storage_class }}
+        labels:
+          kube12/env: aws
+      provisioner: efs.csi.aws.com
+      reclaimPolicy: Retain
+      volumeBindingMode: WaitForFirstConsumer
+      parameters:
+        provisioningMode: efs-ap
+        fileSystemId: {{ efs_id }}
+        directoryPerms: "700"
+        basePath: /dynamic
+  register: efs_csi_sc
+  changed_when: "'unchanged' not in efs_csi_sc.stdout"

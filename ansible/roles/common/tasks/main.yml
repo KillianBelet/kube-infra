@@ -65,7 +65,7 @@
     suites: "{{ ansible_facts.distribution_release }}"
     components: stable
     signed_by: https://download.docker.com/linux/ubuntu/gpg
-  register: repo_docker
+  register: common_repo_docker
 
 - name: Dépôt Kubernetes v{{ kubernetes_version }}
   ansible.builtin.deb822_repository:
@@ -73,15 +73,15 @@
     uris: "https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/"
     suites: /
     signed_by: "https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/Release.key"
-  register: repo_k8s
+  register: common_repo_k8s
 
 - name: Mettre à jour l'index APT
   ansible.builtin.apt:
     update_cache: true
-  when: repo_docker is changed or repo_k8s is changed
+  when: common_repo_docker is changed or common_repo_k8s is changed
 
 # ---------- containerd ----------
-- name: containerd
+- name: Installer containerd
   ansible.builtin.apt:
     name: containerd.io
     state: present
@@ -89,23 +89,23 @@
 - name: Configuration containerd présente
   ansible.builtin.stat:
     path: /etc/containerd/.kube12
-  register: containerd_conf
+  register: common_containerd_conf
 
 # Le paquet containerd.io désactive le plugin CRI : on régénère la config par défaut.
 - name: Configuration containerd par défaut
   ansible.builtin.shell: containerd config default > /etc/containerd/config.toml && touch /etc/containerd/.kube12
-  when: not containerd_conf.stat.exists
+  when: not common_containerd_conf.stat.exists
   changed_when: true
   notify: Redémarrer containerd
 
-- name: containerd utilise le cgroup systemd (comme le kubelet)
+- name: Containerd utilise le cgroup systemd (comme le kubelet)
   ansible.builtin.replace:
     path: /etc/containerd/config.toml
     regexp: 'SystemdCgroup = false'
     replace: 'SystemdCgroup = true'
   notify: Redémarrer containerd
 
-- name: crictl parle à containerd
+- name: Configurer crictl vers containerd
   ansible.builtin.copy:
     dest: /etc/crictl.yaml
     content: |
@@ -113,7 +113,7 @@
       image-endpoint: unix:///run/containerd/containerd.sock
     mode: "0644"
 
-- name: containerd démarré
+- name: Containerd démarré
   ansible.builtin.systemd_service:
     name: containerd
     state: started
@@ -123,9 +123,9 @@
   ansible.builtin.meta: flush_handlers
 
 # ---------- kubeadm / kubelet / kubectl ----------
-- name: kubelet, kubeadm, kubectl {{ kubernetes_release }}
+- name: Installer kubelet, kubeadm et kubectl {{ kubernetes_release }}
   ansible.builtin.apt:
-    name: "{{ kubernetes_packages | product([kubernetes_package_version]) | map('join', '=') }}"
+    name: "{{ common_kubernetes_packages | product([common_kubernetes_package_version]) | map('join', '=') }}"
     state: present
     allow_change_held_packages: true
 
@@ -133,9 +133,9 @@
   ansible.builtin.dpkg_selections:
     name: "{{ item }}"
     selection: hold
-  loop: "{{ kubernetes_packages }}"
+  loop: "{{ common_kubernetes_packages }}"
 
-- name: kubelet activé (il attend kubeadm init/join)
+- name: Activer kubelet (il attend kubeadm init/join)
   ansible.builtin.systemd_service:
     name: kubelet
     enabled: true

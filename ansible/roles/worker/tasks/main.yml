@@ -2,10 +2,10 @@
 - name: Nœud déjà dans le cluster ?
   ansible.builtin.stat:
     path: /etc/kubernetes/kubelet.conf
-  register: kubelet_conf
+  register: worker_kubelet_conf
 
-- name: kubeadm join
-  when: not kubelet_conf.stat.exists
+- name: Rejoindre avec kubeadm join
+  when: not worker_kubelet_conf.stat.exists
   vars:
     cp: "{{ groups['control_plane'] | first }}"
   block:

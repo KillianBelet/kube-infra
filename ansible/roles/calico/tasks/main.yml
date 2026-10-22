@@ -6,16 +6,16 @@
     -f {{ calico_manifest_url }}
   changed_when: false # apply idempotent
 
-- name: Attendre que les {{ nodes | length }} nœuds soient Ready
+- name: Attendre que tous les nœuds soient Ready
   ansible.builtin.command: >-
     kubectl --kubeconfig /etc/kubernetes/admin.conf wait --for=condition=Ready nodes --all --timeout=300s
   changed_when: false
 
 - name: Nœuds
   ansible.builtin.command: kubectl --kubeconfig /etc/kubernetes/admin.conf get nodes -o wide -L {{ node_label_key }}
-  register: nodes_out
+  register: calico_nodes_out
   changed_when: false
 
 - name: Récapitulatif
   ansible.builtin.debug:
-    var: nodes_out.stdout_lines
+    var: calico_nodes_out.stdout_lines

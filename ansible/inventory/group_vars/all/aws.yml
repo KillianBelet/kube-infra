@@ -1,0 +1,31 @@
+---
+# Paramètres AWS du cluster KUBE (cf. Miro « KUBE : architecture du cluster »)
+project: kube-12
+aws_region: eu-north-1
+aws_az: eu-north-1a
+
+vpc_cidr: 10.0.0.0/16
+subnet_cidr: 10.0.0.0/24
+
+# c7i-flex.large : 2 vCPU / 4 Go, éligible au Free plan
+instance_type: c7i-flex.large
+root_volume_gb: 30
+
+# Ubuntu 24.04 LTS (Canonical)
+ami_owner: "099720109477"
+ami_name_pattern: ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*
+
+ssh_key_name: "{{ project }}"
+
+# Qui peut joindre SSH (22) et l'API Kubernetes (6443).
+# Par défaut : l'IP publique de la machine qui lance le playbook.
+# Pour ajouter un membre : -e '{"admin_cidrs": ["1.2.3.4/32", "5.6.7.8/32"]}'
+admin_cidrs:
+  - "{{ lookup('ansible.builtin.url', 'https://checkip.amazonaws.com') | trim }}/32"
+
+# Ports ouverts à Internet sur les nœuds (Traefik : HTTP/HTTPS)
+public_tcp_ports: [80, 443]
+
+common_tags:
+  Project: "{{ project }}"
+  ManagedBy: ansible
