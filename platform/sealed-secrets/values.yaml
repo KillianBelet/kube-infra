@@ -1,0 +1,4 @@
+# Sealed Secrets controller
+# Chart : sealed-secrets/sealed-secrets (https://bitnami.github.io/sealed-secrets)
+# Namespace : sealed-secrets
+# Voir README.md pour la procédure d'installation et d'utilisation.
