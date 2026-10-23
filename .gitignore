@@ -1,12 +1,4 @@
-# Secrets
-*.pem
-*accessKeys*.csv
-.vault_pass*
+﻿.idea/
+*.ps1
+.kube-12/
 kubeconfig*
-*.retry
-
-# Généré par provision-aws.yml (IP publique du cluster)
-ansible/inventory/group_vars/all/aws_outputs.yml
-
-# Clés publiques SSH de l'équipe (voir team_authorized_keys.example)
-ansible/files/team_authorized_keys
