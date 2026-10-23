@@ -10,6 +10,14 @@ Architecture : [Miro](https://miro.com/app/board/uXjVHigyph8=/) — suivi : [Git
 | kube-2 | worker | 10.0.0.113 |
 | kube-3 | worker | 10.0.0.115 |
 
+## Arborescence du dépôt
+
+- `ansible/` : playbooks de provisioning (local kind + prod AWS kubeadm)
+- `bootstrap/` : manifests d'amorçage du cluster (namespaces, CRDs de base...)
+- `platform/<composant>/` : un dossier par composant d'infra (traefik, cert-manager, argocd, sealed-secrets, monitoring, logging...)
+- `apps/` : définitions ArgoCD Application pointant vers le repo applicatif
+- `docs/` : documentation détaillée (infra AWS, Ansible, environnement local)
+
 ## Deux environnements, mêmes manifests
 
 | | Local (kind) | Prod (AWS) |
