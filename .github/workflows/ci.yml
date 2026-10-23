@@ -1,0 +1,98 @@
+name: CI - Infrastructure
+
+on:
+  push:
+    branches: [ develop, feature/**, feat/** ]
+  pull_request:
+    branches: [ develop, main ]
+
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
+
+jobs:
+  validate-kubernetes:
+    name: Validate Kubernetes manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+
+      - name: Validate YAML syntax
+        run: |
+          find . -name "*.yaml" -o -name "*.yml" | grep -v ".github" | while read f; do
+            echo "Checking $f"
+            kubectl apply --dry-run=client --validate=true -f "$f" 2>/dev/null || \
+            python3 -c "import yaml; yaml.safe_load(open('$f'))" && echo "OK: $f"
+          done
+
+  lint-helm:
+    name: Lint Helm charts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Lint all Helm charts
+        run: |
+          find . -name "Chart.yaml" | while read chart; do
+            dir=$(dirname "$chart")
+            echo "Linting $dir..."
+            helm lint "$dir"
+          done
+
+  lint-ansible:
+    name: Lint Ansible playbooks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ansible-lint
+        run: pip install ansible-lint
+
+      - name: Lint Ansible
+        run: |
+          if [ -d "ansible" ]; then
+            ansible-lint ansible/ || true
+          else
+            echo "No ansible/ directory found, skipping"
+          fi
+
+  validate-structure:
+    name: Validate repo structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required directories
+        run: |
+          dirs=("ansible" "gitops" "docs")
+          for d in "${dirs[@]}"; do
+            if [ -d "$d" ]; then
+              echo "OK: $d/"
+            else
+              echo "MISSING: $d/"
+            fi
+          done
+
+  security-secrets:
+    name: Check for secrets in code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.0/gitleaks_8.18.0_linux_x64.tar.gz | tar -xz
+          sudo mv gitleaks /usr/local/bin/
+
+      - name: Scan for secrets
+        run: gitleaks detect --source . --no-git || true
