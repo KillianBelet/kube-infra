@@ -25,7 +25,8 @@ Architecture : [Miro](https://miro.com/app/board/uXjVHigyph8=/) — suivi : [Git
 | Cluster | kind, 3 nœuds Docker | 3 VM, kubeadm |
 | CNI | Calico | Calico |
 | Nœuds | label `kube12/node=kube-1/2/3` | label `kube12/node=kube-1/2/3` |
-| Entrée | 127.0.0.1:80/443 → NodePorts 30080/30443 | kube-1:80/443 → NodePorts 30080/30443 |
+| Entrée | 127.0.0.1:80/443 → NodePorts 30080/30443 | kube-1:80/443 → Traefik (hostPort) |
+| Certificats | aucun (Let's Encrypt ne joint pas 127.0.0.1) | Let's Encrypt via cert-manager ([docs](docs/cert-manager.md)) |
 | Domaines | `*.127.0.0.1.sslip.io` | `*.<IP publique>.sslip.io` |
 | StorageClass `efs-sc` | local-path (pas de RWX) | Amazon EFS |
 

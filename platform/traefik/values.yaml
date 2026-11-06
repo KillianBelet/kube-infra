@@ -5,13 +5,24 @@ ports:
   web:
     port: 80
     nodePort: 30080
+    hostPort: 80 # prod : kube-1:80 doit répondre pour HTTP-01
+    allowACMEByPass: true
   websecure:
     port: 443
     nodePort: 30443
+    hostPort: 443
+
+# hostPort : un seul pod Traefik à la fois sur kube-1
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+    maxSurge: 0
 
 ingressClass:
   enabled: true
   isDefaultClass: true
+  name: traefik
 
 providers:
   kubernetesIngress:
