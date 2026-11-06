@@ -1,0 +1,178 @@
+---
+# Test cert-manager : certificat Let's Encrypt pour tls-test.<IP publique>.sslip.io.
+# Les ressources restent en place à la fin pour vérifier dans le navigateur.
+#   ansible-playbook -i inventory tests/tls.yml                                       # staging
+#   ansible-playbook -i inventory tests/tls.yml -e tls_test_issuer=letsencrypt-prod   # prod
+#   ansible-playbook -i inventory tests/tls.yml -e tls_test_cleanup=true              # nettoyage
+- name: Test des certificats TLS
+  hosts: control_plane
+  become: true
+  gather_facts: false
+  vars:
+    tls_test_issuer: letsencrypt-staging
+    tls_test_cleanup: false
+    tls_test_host: "tls-test.{{ base_domain }}"
+    kubectl_admin: kubectl --kubeconfig /etc/kubernetes/admin.conf
+    kubectl: "{{ kubectl_admin }} -n tls-test"
+  tasks:
+    - name: Nettoyage
+      when: tls_test_cleanup | bool
+      block:
+        - name: Supprimer le namespace de test
+          ansible.builtin.command: "{{ kubectl_admin }} delete namespace tls-test --ignore-not-found --wait=true --timeout=120s"
+          register: tls_test_deleted
+          changed_when: "'deleted' in tls_test_deleted.stdout"
+
+        - name: Fin
+          ansible.builtin.meta: end_play
+
+    - name: Vérifier les paramètres
+      ansible.builtin.assert:
+        that:
+          - base_domain is defined
+          - tls_test_issuer in ['letsencrypt-staging', 'letsencrypt-prod']
+        fail_msg: "base_domain manquant (aws_outputs.yml) ou tls_test_issuer invalide"
+        quiet: true
+
+    - name: ClusterIssuer prêt {{ tls_test_issuer }}
+      ansible.builtin.command: "{{ kubectl_admin }} wait --for=condition=Ready clusterissuer/{{ tls_test_issuer }} --timeout=60s"
+      changed_when: false
+
+    - name: Test du certificat
+      block:
+        - name: Ressources de test
+          ansible.builtin.command:
+            cmd: "{{ kubectl_admin }} apply -f -"
+            stdin: |
+              apiVersion: v1
+              kind: Namespace
+              metadata: {name: tls-test}
+              ---
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata: {name: whoami, namespace: tls-test}
+              spec:
+                replicas: 1
+                selector: {matchLabels: {app: whoami}}
+                template:
+                  metadata: {labels: {app: whoami}}
+                  spec:
+                    containers:
+                      - name: whoami
+                        image: traefik/whoami:v1.12.0
+                        ports: [{containerPort: 80}]
+                        resources: {requests: {cpu: 5m, memory: 16Mi}}
+              ---
+              apiVersion: v1
+              kind: Service
+              metadata: {name: whoami, namespace: tls-test}
+              spec:
+                selector: {app: whoami}
+                ports: [{port: 80, targetPort: 80}]
+              ---
+              apiVersion: networking.k8s.io/v1
+              kind: Ingress
+              metadata: {name: whoami, namespace: tls-test}
+              spec:
+                ingressClassName: traefik
+                tls:
+                  - hosts: [{{ tls_test_host }}]
+                    secretName: tls-test-tls
+                rules:
+                  - host: {{ tls_test_host }}
+                    http:
+                      paths:
+                        - path: /
+                          pathType: Prefix
+                          backend: {service: {name: whoami, port: {number: 80}}}
+              ---
+              apiVersion: cert-manager.io/v1
+              kind: Certificate
+              metadata: {name: tls-test, namespace: tls-test}
+              spec:
+                secretName: tls-test-tls
+                dnsNames: [{{ tls_test_host }}]
+                issuerRef:
+                  kind: ClusterIssuer
+                  name: {{ tls_test_issuer }}
+          register: tls_test_apply
+          changed_when: "'created' in tls_test_apply.stdout or 'configured' in tls_test_apply.stdout"
+
+        # Ready ne suffit pas : juste après le passage staging -> prod, l'ancien certificat est encore Ready
+        - name: Attendre le certificat de {{ tls_test_issuer }}
+          ansible.builtin.command: >-
+            {{ kubectl }} get secret tls-test-tls --ignore-not-found
+            -o 'jsonpath={.metadata.annotations.cert-manager\.io/issuer-name}'
+          register: tls_test_secret_issuer
+          until: tls_test_secret_issuer.stdout == tls_test_issuer
+          retries: 30
+          delay: 10
+          changed_when: false
+
+        - name: Certificate Ready
+          ansible.builtin.command: "{{ kubectl }} wait --for=condition=Ready certificate/tls-test --timeout=120s"
+          changed_when: false
+
+        - name: Certificat servi par Traefik
+          community.crypto.get_certificate:
+            host: "{{ tls_test_host }}"
+            port: 443
+            server_name: "{{ tls_test_host }}"
+          delegate_to: localhost
+          become: false
+          vars:
+            ansible_python_interpreter: "{{ ansible_playbook_python }}"
+          register: tls_test_served
+
+        - name: Vérifier l'émetteur
+          ansible.builtin.assert:
+            that:
+              - "'Encrypt' in tls_test_served.issuer.O | default('')"
+              - ('STAGING' in tls_test_served.issuer.O | default('')) == (tls_test_issuer == 'letsencrypt-staging')
+            fail_msg: "attendu {{ tls_test_issuer }}, reçu {{ tls_test_served.issuer }}"
+            quiet: true
+
+        - name: Requête HTTPS
+          ansible.builtin.uri:
+            url: "https://{{ tls_test_host }}/"
+            validate_certs: "{{ tls_test_issuer == 'letsencrypt-prod' }}"
+            return_content: true
+          delegate_to: localhost
+          become: false
+          vars:
+            ansible_python_interpreter: "{{ ansible_playbook_python }}"
+          register: tls_test_https
+          failed_when: "tls_test_https.status != 200 or 'Hostname: whoami' not in tls_test_https.content | default('')"
+
+        - name: Résultat
+          ansible.builtin.debug:
+            msg:
+              - "OK : {{ tls_test_served.issuer.O }} ({{ tls_test_served.issuer.CN }}), expire le {{ tls_test_served.not_after }}"
+              - "https://{{ tls_test_host }}"
+
+      rescue:
+        - name: Diagnostic
+          ansible.builtin.shell: |
+            set -o pipefail
+            {{ kubectl }} get certificate,certificaterequest,order,challenge,ingress,pods -o wide
+            echo '--- certificate'
+            {{ kubectl }} describe certificate tls-test | sed -n '/^Status:/,$p'
+            echo '--- challenges'
+            {{ kubectl }} get challenge -o custom-columns=HOST:.spec.dnsName,STATE:.status.state,REASON:.status.reason
+            echo '--- événements'
+            {{ kubectl }} get events --sort-by=.lastTimestamp | tail -15
+            echo '--- cert-manager'
+            {{ kubectl_admin }} -n cert-manager logs deploy/cert-manager --tail=20
+          args:
+            executable: /bin/bash
+          register: tls_test_diag
+          changed_when: false
+          failed_when: false
+
+        - name: Afficher le diagnostic
+          ansible.builtin.debug:
+            var: tls_test_diag.stdout_lines
+
+        - name: Échec du test
+          ansible.builtin.fail:
+            msg: "Certificat non émis ou non servi : voir le diagnostic ci-dessus et docs/cert-manager.md"
