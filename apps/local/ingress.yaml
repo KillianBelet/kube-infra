@@ -12,7 +12,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/KillianBelet/kube-infra
-    targetRevision: feature/app-of-apps
+    targetRevision: develop
     path: platform/ingress
     helm:
       releaseName: kube12-ingress

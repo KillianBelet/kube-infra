@@ -19,7 +19,7 @@ spec:
         valueFiles:
           - $values/platform/traefik/values.yaml
     - repoURL: https://github.com/KillianBelet/kube-infra
-      targetRevision: feature/app-of-apps
+      targetRevision: develop
       ref: values
   destination:
     server: https://kubernetes.default.svc
