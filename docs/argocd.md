@@ -79,7 +79,7 @@ Vérifier :
 ```bash
 kubectl -n argocd get pods                               # tous Running
 kubectl get ingress -A                                   # argocd : argocd.127.0.0.1.sslip.io
-curl -sI  http://argocd.127.0.0.1.sslip.io/  | head -1   # 301 vers https
+curl -sI  http://argocd.127.0.0.1.sslip.io/  | head -1   # 308 vers https
 curl -skI https://argocd.127.0.0.1.sslip.io/ | head -1   # 200
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
 ```
@@ -192,7 +192,7 @@ kubectl -n argocd delete secret argocd-initial-admin-secret   # n'est plus valab
 
 ## 7. Test (critères d'acceptation)
 
-**Local** : les vérifications du § 2 (`curl` 301 puis 200, interface, dépôts `Successful`).
+**Local** : les vérifications du § 2 (`curl` 308 puis 200, interface, dépôts `Successful`).
 
 **Prod** : depuis `ansible/`, après les § 3 et 4 :
 
@@ -261,6 +261,6 @@ Sans cluster ni accès réseau pendant le développement, validations hors clust
 | clés de `platform/argocd/values.yaml` contre le `values.yaml` du chart tag `argo-cd-10.18.0` | toutes présentes, types identiques |
 
 Non fait (pas de binaire `helm` ni de cluster joignables) : `helm template` du chart, déploiement
-sur kind (§ 2) et sur AWS (§ 4). À faire : § 2 complet sur kind (pods Running, `curl` 301 puis 200,
+sur kind (§ 2) et sur AWS (§ 4). À faire : § 2 complet sur kind (pods Running, `curl` 308 puis 200,
 dépôts `Successful`) ; plus tard, sur AWS : `argocd.yml` (2e passage `changed=0`), chart ingress en
 staging puis prod, `tests/argocd.yml` dans les deux cas, cadenas valide.
