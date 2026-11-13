@@ -13,7 +13,7 @@ spec:
   source:
     repoURL: https://github.com/KillianBelet/kube-infra
     # develop tant que les composants ne sont pas sur main ; passer à main ensuite.
-    targetRevision: develop
+    targetRevision: feature/app-of-apps
     path: apps
     directory:
       recurse: true
