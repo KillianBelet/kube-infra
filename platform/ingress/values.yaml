@@ -25,7 +25,7 @@ routes:
     service: app
     port: 80
   argocd:           # #35 : argocd-server en HTTP (server.insecure), TLS terminé par Traefik
-    enabled: false
+    enabled: true
     namespace: argocd
     service: argocd-server
     port: 80

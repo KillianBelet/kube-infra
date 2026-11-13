@@ -90,6 +90,7 @@ cert-manager v1.21.3, service de test `whoami` dans le namespace `app` :
 | `https://app.127.0.0.1.sslip.io/` | réponse de `whoami`, `Host: app.127.0.0.1.sslip.io` |
 | certificat servi en local | `TRAEFIK DEFAULT CERT` (attendu, § 6 de cert-manager.md) |
 | `certManager: true` | annotation `letsencrypt-staging`, `Certificate app-tls` et Challenge créés par cert-manager |
+| route `argocd` avec Argo CD v3.6.1 (`platform/argocd/values.yaml`, PR #72) | `http://` → `301` HTTPS ; `https://argocd.127.0.0.1.sslip.io/` → `200`, page Argo CD, `/api/version` = `v3.6.1` |
 
 À faire sur AWS : `issuer: letsencrypt-prod` sur une route, `Certificate` `READY=True`, cadenas valide.
 
