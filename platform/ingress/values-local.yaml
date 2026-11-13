@@ -1,0 +1,3 @@
+# Local (kind) : 127.0.0.1 désigne la machine de chacun, Let's Encrypt ne peut pas la joindre.
+baseDomain: 127.0.0.1.sslip.io
+certManager: false
