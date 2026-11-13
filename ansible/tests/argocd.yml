@@ -1,0 +1,184 @@
+---
+# Test Argo CD (#35) : UI en HTTPS avec un certificat Let's Encrypt, dépôts « Successful ».
+#   ansible-playbook -i inventory tests/argocd.yml                                       # certificat staging
+#   ansible-playbook -i inventory tests/argocd.yml -e argocd_test_issuer=letsencrypt-prod # cadenas valide
+# Mot de passe admin changé depuis l'installation : -e argocd_test_password=...
+- name: Test d'Argo CD
+  hosts: control_plane
+  become: true
+  gather_facts: false
+  vars:
+    argocd_test_issuer: letsencrypt-staging
+    argocd_test_password: ""
+    argocd_test_host: "argocd.{{ base_domain }}"
+    argocd_test_validate_certs: "{{ argocd_test_issuer == 'letsencrypt-prod' }}"
+    kubectl: kubectl --kubeconfig /etc/kubernetes/admin.conf -n argocd
+  tasks:
+    - name: Vérifier les paramètres
+      ansible.builtin.assert:
+        that:
+          - base_domain is defined
+          - argocd_test_issuer in ['letsencrypt-staging', 'letsencrypt-prod']
+          - argocd_repos | length > 0
+        fail_msg: "base_domain manquant (aws_outputs.yml), issuer invalide ou argocd_repos vide"
+        quiet: true
+
+    - name: Test de l'exposition HTTPS
+      block:
+        - name: Argo CD prêt
+          ansible.builtin.command: "{{ kubectl }} rollout status deploy/argocd-server statefulset/argocd-application-controller --timeout=120s"
+          changed_when: false
+
+        # Ready ne suffit pas : juste après le passage staging -> prod, l'ancien certificat est encore Ready
+        - name: Attendre le certificat de {{ argocd_test_issuer }}
+          ansible.builtin.command: >-
+            {{ kubectl }} get secret argocd-server-tls --ignore-not-found
+            -o 'jsonpath={.metadata.annotations.cert-manager\.io/issuer-name}'
+          register: argocd_test_secret_issuer
+          until: argocd_test_secret_issuer.stdout == argocd_test_issuer
+          retries: 30
+          delay: 10
+          changed_when: false
+
+        - name: Certificate Ready
+          ansible.builtin.command: "{{ kubectl }} wait --for=condition=Ready certificate/argocd-server-tls --timeout=120s"
+          changed_when: false
+
+        - name: Certificat servi par Traefik
+          community.crypto.get_certificate:
+            host: "{{ argocd_test_host }}"
+            port: 443
+            server_name: "{{ argocd_test_host }}"
+          delegate_to: localhost
+          become: false
+          vars:
+            ansible_python_interpreter: "{{ ansible_playbook_python }}"
+          register: argocd_test_served
+
+        - name: Vérifier l'émetteur
+          ansible.builtin.assert:
+            that:
+              - "'Encrypt' in argocd_test_served.issuer.O | default('')"
+              - ('STAGING' in argocd_test_served.issuer.O | default('')) == (argocd_test_issuer == 'letsencrypt-staging')
+            fail_msg: "attendu {{ argocd_test_issuer }}, reçu {{ argocd_test_served.issuer }}"
+            quiet: true
+
+        - name: HTTP redirigé vers HTTPS
+          ansible.builtin.uri:
+            url: "http://{{ argocd_test_host }}/"
+            follow_redirects: none
+            status_code: [301, 302, 307, 308]
+          delegate_to: localhost
+          become: false
+          vars:
+            ansible_python_interpreter: "{{ ansible_playbook_python }}"
+          register: argocd_test_redirect
+          failed_when: not (argocd_test_redirect.location | default('') | lower).startswith('https://')
+
+        - name: Interface web
+          ansible.builtin.uri:
+            url: "https://{{ argocd_test_host }}/"
+            validate_certs: "{{ argocd_test_validate_certs }}"
+            return_content: true
+          delegate_to: localhost
+          become: false
+          vars:
+            ansible_python_interpreter: "{{ ansible_playbook_python }}"
+          register: argocd_test_ui
+          failed_when: argocd_test_ui.status != 200 or 'Argo CD' not in argocd_test_ui.content | default('')
+
+        # ---------- Dépôts : même source que Settings > Repositories ----------
+        - name: Mot de passe initial de admin
+          ansible.builtin.command: "{{ kubectl }} get secret argocd-initial-admin-secret --ignore-not-found -o 'jsonpath={.data.password}'"
+          register: argocd_test_initial
+          changed_when: false
+          no_log: true
+
+        - name: Mot de passe admin connu
+          ansible.builtin.assert:
+            that: (argocd_test_password | length > 0) or (argocd_test_initial.stdout | length > 0)
+            fail_msg: >-
+              Secret argocd-initial-admin-secret absent (mot de passe changé) :
+              relancer avec -e argocd_test_password=...
+            quiet: true
+
+        - name: Session sur l'API
+          ansible.builtin.uri:
+            url: "https://{{ argocd_test_host }}/api/v1/session"
+            method: POST
+            body_format: json
+            body:
+              username: admin
+              password: "{{ argocd_test_password if argocd_test_password | length > 0 else argocd_test_initial.stdout | b64decode }}"
+            validate_certs: "{{ argocd_test_validate_certs }}"
+          delegate_to: localhost
+          become: false
+          vars:
+            ansible_python_interpreter: "{{ ansible_playbook_python }}"
+          register: argocd_test_session
+          no_log: true
+
+        - name: Dépôts vus par Argo CD
+          ansible.builtin.uri:
+            url: "https://{{ argocd_test_host }}/api/v1/repositories?forceRefresh=true"
+            headers:
+              Authorization: "Bearer {{ argocd_test_session.json.token }}"
+            validate_certs: "{{ argocd_test_validate_certs }}"
+            timeout: 60
+          delegate_to: localhost
+          become: false
+          vars:
+            ansible_python_interpreter: "{{ ansible_playbook_python }}"
+          register: argocd_test_repos
+          no_log: true
+
+        - name: Chaque dépôt est Successful
+          ansible.builtin.assert:
+            that: argocd_test_state | length == 1 and argocd_test_state[0].connectionState.status == 'Successful'
+            fail_msg: >-
+              {{ item.name }} ({{ item.url }}) : {{ argocd_test_state | map(attribute='connectionState') | list
+              if argocd_test_state | length > 0 else 'dépôt absent de Settings > Repositories' }}
+            quiet: true
+          vars:
+            argocd_test_state: >-
+              {{ argocd_test_repos.json['items'] | default([])
+                 | selectattr('repo', 'defined')
+                 | selectattr('repo', 'match', '(?i)^' ~ (item.url | regex_replace('(\.git)?/?$', '') | regex_escape) ~ '(\.git)?/?$')
+                 | list }}
+          loop: "{{ argocd_repos }}"
+          loop_control:
+            label: "{{ item.name }}"
+
+        - name: Résultat
+          ansible.builtin.debug:
+            msg:
+              - "OK : {{ argocd_test_served.issuer.O }} ({{ argocd_test_served.issuer.CN }}), expire le {{ argocd_test_served.not_after }}"
+              - "{{ argocd_repos | length }} dépôt(s) Successful"
+              - "https://{{ argocd_test_host }}"
+
+      rescue:
+        - name: Diagnostic
+          ansible.builtin.shell: |
+            set -o pipefail
+            {{ kubectl }} get pods,ingress,certificate,challenge -o wide
+            echo '--- certificate'
+            {{ kubectl }} describe certificate argocd-server-tls | sed -n '/^Status:/,$p'
+            echo '--- événements'
+            {{ kubectl }} get events --sort-by=.lastTimestamp | tail -15
+            echo '--- argocd-server'
+            {{ kubectl }} logs deploy/argocd-server --tail=20
+            echo '--- argocd-repo-server'
+            {{ kubectl }} logs deploy/argocd-repo-server --tail=20
+          args:
+            executable: /bin/bash
+          register: argocd_test_diag
+          changed_when: false
+          failed_when: false
+
+        - name: Afficher le diagnostic
+          ansible.builtin.debug:
+            var: argocd_test_diag.stdout_lines
+
+        - name: Échec du test
+          ansible.builtin.fail:
+            msg: "Argo CD non joignable en HTTPS ou dépôt en échec : voir le diagnostic ci-dessus et docs/argocd.md"

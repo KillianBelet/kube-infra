@@ -1,0 +1,60 @@
+# Argo CD
+# Chart : argo-cd (https://argoproj.github.io/argo-helm), version 10.18.0 (Argo CD v3.6.1)
+# Namespace : argocd
+# Voir docs/argocd.md pour l'installation, les dépôts et le test.
+#
+# Valeurs par défaut = environnement local (kind). En prod, le rôle Ansible `argocd`
+# surcharge `global.domain` (argocd.<IP publique>.sslip.io) et l'annotation
+# `cert-manager.io/cluster-issuer` (letsencrypt-staging puis letsencrypt-prod).
+
+global:
+  domain: argocd.127.0.0.1.sslip.io
+
+configs:
+  params:
+    # TLS terminé par Traefik : derrière l'Ingress, le serveur Argo CD parle HTTP.
+    server.insecure: true
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    tls: true # certificat dans le Secret argocd-server-tls, créé par cert-manager
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-staging # nouveau hostname : toujours staging d'abord
+  resources:
+    requests:
+      cpu: 25m
+      memory: 128Mi
+
+controller:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+
+repoServer:
+  resources:
+    requests:
+      cpu: 25m
+      memory: 128Mi
+
+applicationSet:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+
+redis:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+
+# Pas de Dex : la connexion SSO passera directement par Keycloak (OIDC, ticket auth).
+dex:
+  enabled: false
+
+# Pas de notifications pour l'instant.
+notifications:
+  enabled: false
