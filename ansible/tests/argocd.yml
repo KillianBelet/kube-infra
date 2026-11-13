@@ -1,7 +1,8 @@
 ---
 # Test Argo CD (#35) : UI en HTTPS avec un certificat Let's Encrypt, dépôts « Successful ».
-#   ansible-playbook -i inventory tests/argocd.yml                                       # certificat staging
-#   ansible-playbook -i inventory tests/argocd.yml -e argocd_test_issuer=letsencrypt-prod # cadenas valide
+# Prérequis : Argo CD installé (argocd.yml) et route `argocd` du chart platform/ingress déployée.
+#   ansible-playbook -i inventory tests/argocd.yml                                       # route sur letsencrypt-staging
+#   ansible-playbook -i inventory tests/argocd.yml -e argocd_test_issuer=letsencrypt-prod # route sur letsencrypt-prod
 # Mot de passe admin changé depuis l'installation : -e argocd_test_password=...
 - name: Test d'Argo CD
   hosts: control_plane
@@ -32,7 +33,7 @@
         # Ready ne suffit pas : juste après le passage staging -> prod, l'ancien certificat est encore Ready
         - name: Attendre le certificat de {{ argocd_test_issuer }}
           ansible.builtin.command: >-
-            {{ kubectl }} get secret argocd-server-tls --ignore-not-found
+            {{ kubectl }} get secret argocd-tls --ignore-not-found
             -o 'jsonpath={.metadata.annotations.cert-manager\.io/issuer-name}'
           register: argocd_test_secret_issuer
           until: argocd_test_secret_issuer.stdout == argocd_test_issuer
@@ -41,7 +42,7 @@
           changed_when: false
 
         - name: Certificate Ready
-          ansible.builtin.command: "{{ kubectl }} wait --for=condition=Ready certificate/argocd-server-tls --timeout=120s"
+          ansible.builtin.command: "{{ kubectl }} wait --for=condition=Ready certificate/argocd-tls --timeout=120s"
           changed_when: false
 
         - name: Certificat servi par Traefik
@@ -162,7 +163,7 @@
             set -o pipefail
             {{ kubectl }} get pods,ingress,certificate,challenge -o wide
             echo '--- certificate'
-            {{ kubectl }} describe certificate argocd-server-tls | sed -n '/^Status:/,$p'
+            {{ kubectl }} describe certificate argocd-tls | sed -n '/^Status:/,$p'
             echo '--- événements'
             {{ kubectl }} get events --sort-by=.lastTimestamp | tail -15
             echo '--- argocd-server'

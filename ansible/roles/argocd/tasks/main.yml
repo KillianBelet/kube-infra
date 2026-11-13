@@ -1,17 +1,17 @@
 ---
 # Argo CD : seul composant installé hors GitOps (bootstrap). Il se charge ensuite
 # de déployer le reste depuis les dépôts Git enregistrés ci-dessous.
-# Prérequis : helm sur kube-1 (rôle efs_csi), Traefik, cert-manager et ses ClusterIssuers (#31).
+# Prérequis : helm sur kube-1 (rôle efs_csi).
+# Exposition HTTPS : route `argocd` du chart platform/ingress, à déployer après ce rôle (docs/ingress.md).
 
 - name: Paramètres valides
   ansible.builtin.assert:
     that:
       - base_domain is defined
-      - argocd_cluster_issuer in ['letsencrypt-staging', 'letsencrypt-prod']
       - argocd_repos | length > 0
       - argocd_repos | map(attribute='url') | select('match', '^https://[^<>\s]+$') | list | length == argocd_repos | length
     fail_msg: >-
-      base_domain manquant (aws_outputs.yml), issuer invalide, ou URL de dépôt absente / invalide :
+      base_domain manquant (aws_outputs.yml), ou URL de dépôt absente / invalide :
       voir inventory/group_vars/all/argocd.yml (argocd_app_repo_url est à renseigner)
     quiet: true
 
@@ -27,18 +27,6 @@
   ansible.builtin.assert:
     that: argocd_helm_version.rc == 0
     fail_msg: "helm absent de kube-1 : lancer d'abord site.yml (rôle efs_csi)"
-    quiet: true
-
-- name: ClusterIssuer présent
-  ansible.builtin.command: "{{ argocd_kubectl }} get clusterissuer {{ argocd_cluster_issuer }}"
-  register: argocd_issuer
-  changed_when: false
-  failed_when: false
-
-- name: Vérifier que cert-manager et le ClusterIssuer existent
-  ansible.builtin.assert:
-    that: argocd_issuer.rc == 0
-    fail_msg: "ClusterIssuer {{ argocd_cluster_issuer }} introuvable : installer cert-manager d'abord (docs/cert-manager.md § 3)"
     quiet: true
 
 # ---------- Helm ----------
@@ -117,7 +105,10 @@
 - name: Récapitulatif
   ansible.builtin.debug:
     msg:
-      - "Argo CD {{ argocd_chart_version }} : https://{{ argocd_host }} (certificat {{ argocd_cluster_issuer }})"
+      - "Argo CD {{ argocd_chart_version }} installé. URL attendue : https://{{ argocd_host }}"
+      - >-
+        Exposer en HTTPS : helm upgrade --install kube12-ingress platform/ingress -n kube-system
+        --set baseDomain={{ base_domain }} --wait (route argocd activée, docs/ingress.md)
       - >-
         Mot de passe initial de admin : kubectl -n {{ argocd_namespace }}
         get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d

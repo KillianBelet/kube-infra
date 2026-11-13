@@ -1,10 +1,10 @@
 ---
 # Bootstrap d'Argo CD sur le cluster de prod (#35) : seul composant installé hors GitOps.
-# Prérequis : site.yml passé (cluster + helm), Traefik et cert-manager installés (docs/cert-manager.md).
+# Prérequis : site.yml passé (cluster + helm). En local (kind), voir docs/argocd.md : helm direct.
 #   export ARGOCD_INFRA_REPO_TOKEN=...  ARGOCD_APP_REPO_TOKEN=...   # jetons en lecture seule (vide = dépôt public)
-#   ansible-playbook -i inventory argocd.yml                                          # certificat staging
-#   ansible-playbook -i inventory argocd.yml -e argocd_cluster_issuer=letsencrypt-prod # cadenas valide
-# Rejouable : un second passage ne change rien.
+#   ansible-playbook -i inventory argocd.yml
+# L'Ingress HTTPS vient ensuite du chart platform/ingress (route argocd, docs/ingress.md).
+# Rejouable : un second passage ne change rien. Nouvelle IP publique : base_domain puis ce playbook.
 
 - name: Argo CD sur kube-1 (#35)
   hosts: control_plane

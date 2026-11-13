@@ -6,21 +6,16 @@ argocd_namespace: argocd
 argocd_kubeconfig: /etc/kubernetes/admin.conf
 argocd_kubectl: "kubectl --kubeconfig {{ argocd_kubeconfig }}"
 
-# Certificats : nouveau hostname = staging d'abord, puis -e argocd_cluster_issuer=letsencrypt-prod
-argocd_cluster_issuer: letsencrypt-staging
-
 # Values du repo (platform/argocd/values.yaml) + valeurs propres à la prod,
-# fusionnées ici et déposées sur kube-1 pour helm.
+# fusionnées ici et déposées sur kube-1 pour helm. L'Ingress HTTPS n'est pas dans ce chart :
+# c'est la route `argocd` de platform/ingress (hostname = argocd.<baseDomain>, même valeur que base_domain).
+
 argocd_values_file: "{{ playbook_dir }}/../platform/argocd/values.yaml"
 argocd_values_remote: /opt/argocd-values.yaml
 argocd_host: "argocd.{{ base_domain }}"
 argocd_values_prod:
   global:
     domain: "{{ argocd_host }}"
-  server:
-    ingress:
-      annotations:
-        cert-manager.io/cluster-issuer: "{{ argocd_cluster_issuer }}"
 argocd_values: "{{ (lookup('ansible.builtin.file', argocd_values_file) | from_yaml) | combine(argocd_values_prod, recursive=true) }}"
 
 # Dépôts à enregistrer : voir inventory/group_vars/all/argocd.yml

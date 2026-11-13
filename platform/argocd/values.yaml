@@ -3,25 +3,24 @@
 # Namespace : argocd
 # Voir docs/argocd.md pour l'installation, les dépôts et le test.
 #
+# Exposition : PAS d'Ingress dans ce chart. L'Ingress HTTPS d'Argo CD est la route `argocd`
+# du chart platform/ingress (docs/ingress.md), comme pour tous les services.
+#
 # Valeurs par défaut = environnement local (kind). En prod, le rôle Ansible `argocd`
-# surcharge `global.domain` (argocd.<IP publique>.sslip.io) et l'annotation
-# `cert-manager.io/cluster-issuer` (letsencrypt-staging puis letsencrypt-prod).
+# surcharge `global.domain` avec argocd.<base_domain>.
 
 global:
+  # URL publique d'Argo CD (url du ConfigMap argocd-cm, SSO) : doit rester égale au
+  # hostname de la route, soit argocd.<baseDomain> du chart platform/ingress.
   domain: argocd.127.0.0.1.sslip.io
 
 configs:
   params:
-    # TLS terminé par Traefik : derrière l'Ingress, le serveur Argo CD parle HTTP.
+    # TLS terminé par Traefik : le serveur Argo CD parle HTTP (Service argocd-server:80,
+    # port attendu par la route `argocd` de platform/ingress).
     server.insecure: true
 
 server:
-  ingress:
-    enabled: true
-    ingressClassName: traefik
-    tls: true # certificat dans le Secret argocd-server-tls, créé par cert-manager
-    annotations:
-      cert-manager.io/cluster-issuer: letsencrypt-staging # nouveau hostname : toujours staging d'abord
   resources:
     requests:
       cpu: 25m
