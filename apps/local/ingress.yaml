@@ -1,0 +1,33 @@
+# Routes HTTPS (chart platform/ingress, #71) — local : *.127.0.0.1.sslip.io, sans cert-manager.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/KillianBelet/kube-infra
+    targetRevision: develop
+    path: platform/ingress
+    helm:
+      releaseName: kube12-ingress
+      valueFiles:
+        - values-local.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

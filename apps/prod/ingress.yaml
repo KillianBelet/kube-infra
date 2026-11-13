@@ -1,0 +1,36 @@
+# Routes HTTPS (chart platform/ingress, #71) — prod AWS.
+# À CHAQUE recréation de l'infra : remplacer baseDomain par <IP publique de kube-1>.sslip.io
+# (même valeur que base_domain dans ansible/inventory/group_vars/all/aws_outputs.yml), puis git push.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/KillianBelet/kube-infra
+    targetRevision: develop
+    path: platform/ingress
+    helm:
+      releaseName: kube12-ingress
+      valuesObject:
+        baseDomain: a-renseigner.sslip.io
+        issuer: letsencrypt-staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
