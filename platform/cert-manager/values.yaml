@@ -9,17 +9,17 @@ crds:
 
 resources:
   requests:
-    cpu: 10m
+    cpu: 12m
     memory: 64Mi
 
 webhook:
   resources:
     requests:
-      cpu: 10m
+      cpu: 12m
       memory: 32Mi
 
 cainjector:
   resources:
     requests:
-      cpu: 10m
+      cpu: 12m
       memory: 64Mi
