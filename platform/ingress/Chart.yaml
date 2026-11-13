@@ -1,0 +1,5 @@
+apiVersion: v2
+name: kube12-ingress
+description: Ingress HTTPS de tous les services exposés (<nom>.<IP publique>.sslip.io, certificat cert-manager)
+type: application
+version: 0.1.0
