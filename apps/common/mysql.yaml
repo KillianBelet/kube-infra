@@ -1,0 +1,46 @@
+# Base de données MySQL de l'application (#54). Voir docs/database.md.
+# Wave 1 : après sealed-secrets (wave 0), qui déchiffre les identifiants ; avant l'application (wave 3).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mysql
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    # Le chart Bitnami (version épinglée), avec les values de ce repo
+    - repoURL: oci://registry-1.docker.io/bitnamicharts/mysql
+      path: .
+      targetRevision: 12.3.5
+      helm:
+        releaseName: mysql
+        valueFiles:
+          - $values/platform/mysql/values.yaml
+    - repoURL: https://github.com/KillianBelet/kube-infra
+      targetRevision: develop
+      ref: values
+    # Les identifiants scellés (SealedSecret -> Secret mysql-credentials)
+    - repoURL: https://github.com/KillianBelet/kube-infra
+      targetRevision: develop
+      path: platform/mysql/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: database
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # Le dry-run échouerait si la CRD SealedSecret n'est pas encore enregistrée.
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

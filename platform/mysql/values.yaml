@@ -1,0 +1,61 @@
+# Base de données MySQL de l'application (#54). Voir docs/database.md.
+# Chart : oci://registry-1.docker.io/bitnamicharts/mysql 12.3.5 (MySQL 8.4 LTS)
+# Namespace : database. Service : mysql.database.svc.cluster.local:3306
+
+# Bitnami a retiré ses images gratuites de docker.io/bitnami (août 2025) : l'image
+# du chart n'existe plus. On prend la même image dans le dépôt bitnamilegacy.
+# Le chart refuse une image qu'il ne connaît pas sans allowInsecureImages.
+global:
+  security:
+    allowInsecureImages: true
+
+image:
+  registry: docker.io
+  repository: bitnamilegacy/mysql
+  tag: 8.4.5-debian-12-r0
+
+# Une seule instance (pas de réplication).
+architecture: standalone
+
+# Identifiants : Secret mysql-credentials, créé par le SealedSecret de
+# platform/mysql/manifests/ (jamais de mot de passe en clair dans Git).
+# Clés : mysql-root-password, mysql-password.
+auth:
+  existingSecret: mysql-credentials
+  # Mêmes noms que la config de l'application (kube-app, deploy/chart/values.yaml)
+  database: app_database
+  username: app_user
+
+primary:
+  # Schéma « Répartition des pods » : la base tourne sur kube-2.
+  nodeSelector:
+    kube12/node: kube-2
+
+  persistence:
+    enabled: true
+    storageClass: efs-sc
+    accessModes:
+      - ReadWriteOnce
+    size: 2Gi
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+
+  # Sur EFS, le premier démarrage (initialisation des fichiers InnoDB) est plus lent.
+  startupProbe:
+    failureThreshold: 30
+
+# Pas d'initContainer root pour changer les droits du volume. Sur EFS, efs-sc ne fixe
+# ni uid ni gid : le driver attribue un uid (à partir de 50000) au point d'accès, qui
+# l'impose à toutes les écritures. runAsUser/fsGroup n'y changent rien et un chown échoue.
+# En local (local-path), le volume est déjà accessible en écriture.
+volumePermissions:
+  enabled: false
+
+# Exporter de métriques : à activer avec Prometheus (#45) si besoin.
+metrics:
+  enabled: false

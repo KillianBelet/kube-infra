@@ -2,3 +2,8 @@
 # Chart : sealed-secrets/sealed-secrets (https://bitnami.github.io/sealed-secrets)
 # Namespace : sealed-secrets
 # Voir README.md pour la procédure d'installation et d'utilisation.
+
+# Clé de l'équipe (docs/database.md § 3) : on garde toujours la même clé sur tous les clusters.
+# Sans ce réglage, le contrôleur génère une nouvelle clé tous les 30 jours, et les secrets
+# scellés avec elle ne se déchiffrent plus sur les autres clusters. "0" (avec les guillemets) = jamais.
+keyrenewperiod: "0"

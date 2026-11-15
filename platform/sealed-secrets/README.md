@@ -23,6 +23,20 @@ tar -xvzf kubeseal-${KUBESEAL_VERSION}-linux-amd64.tar.gz kubeseal
 sudo install -m 755 kubeseal /usr/local/bin/kubeseal
 ```
 
+## Clé de l'équipe
+
+Tous les clusters (kind de chacun, AWS) utilisent la **même** clé, pour qu'un SealedSecret versionné se déchiffre partout.
+Le certificat public est ici : `team-cert.crt`. La clé privée (`sealed-secrets-key.yaml`) n'est jamais dans Git :
+elle se transmet en privé et s'applique **avant** l'installation du controller.
+
+```bash
+kubectl create namespace sealed-secrets
+kubectl apply -f /chemin/hors-git/sealed-secrets-key.yaml
+```
+
+Avec le certificat, on chiffre sans être connecté au cluster : `kubeseal --cert platform/sealed-secrets/team-cert.crt`.
+Détails : [docs/database.md](../../docs/database.md) § 3.
+
 ## Chiffrer un secret
 
 ```bash
@@ -32,10 +46,12 @@ kubectl create secret generic mon-secret \
   -n <namespace-cible> \
   -o yaml | \
 kubeseal \
-  --controller-name=sealed-secrets \
-  --controller-namespace=sealed-secrets \
+  --cert platform/sealed-secrets/team-cert.crt \
   --format yaml > mon-secret-sealed.yaml
 ```
+
+Toujours chiffrer avec `--cert platform/sealed-secrets/team-cert.crt` (le certificat de l'équipe), et non avec
+la clé du cluster local : sinon le secret ne se déchiffre que sur votre cluster.
 
 Le fichier `mon-secret-sealed.yaml` est le seul à commiter dans Git. Le `Secret` en clair ne doit jamais y figurer.
 
