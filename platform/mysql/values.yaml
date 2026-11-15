@@ -45,6 +45,18 @@ primary:
     limits:
       memory: 1Gi
 
+  # Volume des sauvegardes (#56), monté en lecture seule : la restauration se fait
+  # depuis ce pod, et le volume est lié dès le déploiement (sinon il resterait en
+  # attente jusqu'au premier job de sauvegarde, et Argo CD avec lui).
+  extraVolumes:
+    - name: backups
+      persistentVolumeClaim:
+        claimName: mysql-backups
+  extraVolumeMounts:
+    - name: backups
+      mountPath: /backups
+      readOnly: true
+
   # Sur EFS, le premier démarrage (initialisation des fichiers InnoDB) est plus lent.
   startupProbe:
     failureThreshold: 30

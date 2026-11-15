@@ -1,0 +1,23 @@
+# Volume des sauvegardes MySQL (#56), séparé du volume de la base. Voir docs/database.md § 9.
+# Écrit par le CronJob mysql-backup, monté en lecture seule dans mysql-0 (restauration).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-backups
+  namespace: database
+  labels:
+    app.kubernetes.io/name: mysql-backup
+    app.kubernetes.io/part-of: mysql
+  annotations:
+    # Argo CD ne supprime jamais ce volume (ni en retirant le fichier, ni en supprimant
+    # l'Application) : les sauvegardes doivent survivre à la base.
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  # ReadWriteOnce : local-path (kind) ne sait pas faire mieux. Le CronJob et la base
+  # tournent tous les deux sur kube-2, donc ils partagent le volume.
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: efs-sc
+  resources:
+    requests:
+      storage: 2Gi
