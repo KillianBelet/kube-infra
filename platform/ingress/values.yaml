@@ -45,9 +45,9 @@ routes:
     service: dex
     port: 5556
   keycloak:         # #39
-    enabled: false
+    enabled: true
     namespace: keycloak
-    service: keycloak
+    service: keycloak-http
     port: 80
 
 # Champs optionnels d'une route :

@@ -1,0 +1,117 @@
+{
+  "realm": "kube",
+  "displayName": "Kube groupe 12",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "editUsernameAllowed": false,
+  "passwordPolicy": "length(12) and notUsername and notEmail",
+  "bruteForceProtected": true,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "eventsEnabled": true,
+  "eventsExpiration": 604800,
+  "adminEventsEnabled": true,
+  "internationalizationEnabled": true,
+  "supportedLocales": ["fr", "en"],
+  "defaultLocale": "fr",
+  "groups": [
+    {
+      "name": "kube-admins",
+      "attributes": { "description": ["Administration complète du cluster et des outils (cluster-admin)"] }
+    },
+    {
+      "name": "kube-devs",
+      "attributes": { "description": ["Déploiement et modification des applications (edit)"] }
+    },
+    {
+      "name": "kube-viewers",
+      "attributes": { "description": ["Lecture seule (view)"] }
+    }
+  ],
+  "users": [
+    {
+      "username": "charlesnts",
+      "email": "charlesnts@kube12.local",
+      "emailVerified": true,
+      "enabled": true,
+      "groups": ["/kube-admins"],
+      "credentials": [{ "type": "password", "value": "${REALM_SECRET_PASSWORD_CHARLESNTS}", "temporary": true }]
+    },
+    {
+      "username": "killianbelet",
+      "email": "killianbelet@kube12.local",
+      "emailVerified": true,
+      "enabled": true,
+      "groups": ["/kube-admins"],
+      "credentials": [{ "type": "password", "value": "${REALM_SECRET_PASSWORD_KILLIANBELET}", "temporary": true }]
+    },
+    {
+      "username": "h4ss4nnn",
+      "email": "h4ss4nnn@kube12.local",
+      "emailVerified": true,
+      "enabled": true,
+      "groups": ["/kube-admins"],
+      "credentials": [{ "type": "password", "value": "${REALM_SECRET_PASSWORD_H4SS4NNN}", "temporary": true }]
+    },
+    {
+      "username": "yaki00",
+      "email": "yaki00@kube12.local",
+      "emailVerified": true,
+      "enabled": true,
+      "groups": ["/kube-admins"],
+      "credentials": [{ "type": "password", "value": "${REALM_SECRET_PASSWORD_YAKI00}", "temporary": true }]
+    },
+    {
+      "username": "demo",
+      "firstName": "Compte",
+      "lastName": "Démo",
+      "email": "demo@kube12.local",
+      "emailVerified": true,
+      "enabled": true,
+      "groups": ["/kube-viewers"],
+      "credentials": [{ "type": "password", "value": "${REALM_SECRET_DEMO_PASSWORD}", "temporary": false }]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "dex",
+      "name": "dex",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${REALM_SECRET_DEX_CLIENT}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "consentRequired": false,
+      "fullScopeAllowed": false,
+      "frontchannelLogout": true,
+      "redirectUris": ["https://dex.${REALM_BASE_DOMAIN}/callback"],
+      "webOrigins": [],
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}

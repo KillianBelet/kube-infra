@@ -1,0 +1,44 @@
+# Base MySQL de Keycloak (#39). Voir docs/keycloak.md.
+# Wave 1 : après sealed-secrets, avant Keycloak (wave 2).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak-db
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: oci://registry-1.docker.io/bitnamicharts/mysql
+      path: .
+      targetRevision: 12.3.5
+      helm:
+        releaseName: keycloak-db
+        valueFiles:
+          - $values/platform/keycloak/values-db.yaml
+    - repoURL: https://github.com/KillianBelet/kube-infra
+      targetRevision: develop
+      ref: values
+    # identifiants scellés
+    - repoURL: https://github.com/KillianBelet/kube-infra
+      targetRevision: develop
+      path: platform/keycloak/db
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keycloak
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

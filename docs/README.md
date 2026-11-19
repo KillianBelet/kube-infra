@@ -7,6 +7,7 @@
 | [cluster-ansible.md](cluster-ansible.md) | cluster de prod : inventaire, rôles Ansible, choix techniques, dépannage |
 | [cert-manager.md](cert-manager.md) | certificats TLS Let's Encrypt (HTTP-01 via Traefik) : installation, usage dans une Ingress, test, quotas, dépannage |
 | [ingress.md](ingress.md) | hostnames `<service>.<IP>.sslip.io` et Ingress HTTPS de tous les services (chart `platform/ingress`) |
+| [keycloak.md](keycloak.md) | Keycloak : base, secrets, realm `kube`, client dex, tests |
 
 Chaque composant ajouté au cluster (Traefik, ArgoCD, Keycloak…) a sa page ici :
 ce qu'il fait, comment le déployer, comment vérifier qu'il marche, pannes connues.

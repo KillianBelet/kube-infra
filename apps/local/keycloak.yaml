@@ -1,0 +1,46 @@
+# Keycloak (#39, #40), local. Voir docs/keycloak.md.
+# Wave 2 : après keycloak-db.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://codecentric.github.io/helm-charts
+      chart: keycloakx
+      targetRevision: 7.4.0
+      helm:
+        releaseName: keycloak
+        valueFiles:
+          - $values/platform/keycloak/values.yaml
+        valuesObject:
+          baseDomain: 127.0.0.1.sslip.io
+    - repoURL: https://github.com/KillianBelet/kube-infra
+      targetRevision: develop
+      ref: values
+    # secrets scellés + realm kube
+    - repoURL: https://github.com/KillianBelet/kube-infra
+      targetRevision: develop
+      path: platform/keycloak/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keycloak
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
