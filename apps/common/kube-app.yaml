@@ -1,0 +1,34 @@
+# Application métier : manifests du dossier deploy/ du repo applicatif.
+# Wave 3 : déployée après l'infra (Traefik, certificats, Ingress).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-app
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/KillianBelet/kube-app
+    targetRevision: HEAD
+    path: deploy
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

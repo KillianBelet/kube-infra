@@ -1,0 +1,18 @@
+---
+# Dépôts Git lus par Argo CD (#35) : le repo infra (ce repo) et le repo applicatif (#34).
+#
+# Les jetons ne sont JAMAIS dans Git. Ils sont lus dans l'environnement de la machine qui lance
+# Ansible, avec un accès en LECTURE SEULE (fine-grained PAT : Contents = Read-only).
+# Variable absente ou vide = dépôt public, aucun identifiant enregistré.
+#   export ARGOCD_INFRA_REPO_TOKEN=...
+#   export ARGOCD_APP_REPO_TOKEN=...
+argocd_infra_repo_url: https://github.com/KillianBelet/kube-infra
+argocd_app_repo_url: https://github.com/KillianBelet/kube-app # repo applicatif (ticket #34)
+
+argocd_repos:
+  - name: kube-infra
+    url: "{{ argocd_infra_repo_url }}"
+    password: "{{ lookup('ansible.builtin.env', 'ARGOCD_INFRA_REPO_TOKEN') }}"
+  - name: kube-app
+    url: "{{ argocd_app_repo_url }}"
+    password: "{{ lookup('ansible.builtin.env', 'ARGOCD_APP_REPO_TOKEN') }}"

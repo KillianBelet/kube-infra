@@ -1,0 +1,115 @@
+---
+# Argo CD : seul composant installé hors GitOps (bootstrap). Il se charge ensuite
+# de déployer le reste depuis les dépôts Git enregistrés ci-dessous.
+# Prérequis : helm sur kube-1 (rôle efs_csi).
+# Exposition HTTPS : route `argocd` du chart platform/ingress, à déployer après ce rôle (docs/ingress.md).
+
+- name: Paramètres valides
+  ansible.builtin.assert:
+    that:
+      - base_domain is defined
+      - argocd_repos | length > 0
+      - argocd_repos | map(attribute='url') | select('match', '^https://[^<>\s]+$') | list | length == argocd_repos | length
+    fail_msg: >-
+      base_domain manquant (aws_outputs.yml), ou URL de dépôt absente / invalide :
+      voir inventory/group_vars/all/argocd.yml (argocd_app_repo_url est à renseigner)
+    quiet: true
+
+- name: Helm présent sur kube-1
+  ansible.builtin.command: helm version --short
+  register: argocd_helm_version
+  changed_when: false
+  failed_when: false
+  environment:
+    PATH: "/usr/local/bin:{{ ansible_facts.env.PATH }}"
+
+- name: Vérifier que helm est installé
+  ansible.builtin.assert:
+    that: argocd_helm_version.rc == 0
+    fail_msg: "helm absent de kube-1 : lancer d'abord site.yml (rôle efs_csi)"
+    quiet: true
+
+# ---------- Helm ----------
+# Commandes helm directes : le module kubernetes.core.helm n'est pas compatible Helm 4.
+- name: Values Argo CD déposées sur kube-1
+  ansible.builtin.copy:
+    content: "{{ argocd_values | to_nice_yaml(indent=2) }}"
+    dest: "{{ argocd_values_remote }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Version installée d'Argo CD
+  ansible.builtin.command: >-
+    helm get metadata {{ argocd_release }} -n {{ argocd_namespace }} -o json --kubeconfig {{ argocd_kubeconfig }}
+  register: argocd_release_metadata
+  changed_when: false
+  failed_when: argocd_release_metadata.rc != 0 and 'not found' not in argocd_release_metadata.stderr
+  environment:
+    PATH: "/usr/local/bin:{{ ansible_facts.env.PATH }}"
+
+- name: Values installées d'Argo CD
+  ansible.builtin.command: >-
+    helm get values {{ argocd_release }} -n {{ argocd_namespace }} -o json --kubeconfig {{ argocd_kubeconfig }}
+  register: argocd_release_values
+  changed_when: false
+  failed_when: argocd_release_values.rc != 0 and 'not found' not in argocd_release_values.stderr
+  environment:
+    PATH: "/usr/local/bin:{{ ansible_facts.env.PATH }}"
+
+# Rejouable : on ne relance helm que si la release manque, change de version ou de values.
+- name: Installer ou mettre à jour Argo CD {{ argocd_chart_version }}
+  ansible.builtin.command: >-
+    helm upgrade --install {{ argocd_release }} argo-cd
+    --repo {{ argocd_chart_repo }} --version {{ argocd_chart_version }}
+    -n {{ argocd_namespace }} --create-namespace
+    -f {{ argocd_values_remote }}
+    --kubeconfig {{ argocd_kubeconfig }} --wait --timeout 10m
+  when: >-
+    argocd_release_metadata.rc != 0
+    or (argocd_release_metadata.stdout | from_json).version != argocd_chart_version
+    or (argocd_release_values.stdout | from_json) != argocd_values
+  changed_when: true
+  environment:
+    PATH: "/usr/local/bin:{{ ansible_facts.env.PATH }}"
+
+# ---------- Dépôts Git (lecture seule) ----------
+# Un Secret par dépôt, repéré par son label. Le jeton vient de l'environnement de la
+# machine qui lance Ansible : il n'est ni dans Git, ni dans un fichier.
+# Sans jeton (dépôt public), le Secret ne contient que l'URL.
+- name: Dépôt Git enregistré dans Argo CD
+  ansible.builtin.command:
+    cmd: "{{ argocd_kubectl }} apply -f -"
+    stdin: "{{ argocd_repo_secret | to_json }}"
+  vars:
+    argocd_repo_auth: >-
+      {{ {'username': item.username | default('argocd'), 'password': item.password}
+         if (item.password | default('') | length > 0) else {} }}
+    argocd_repo_secret:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "repo-{{ item.name }}"
+        namespace: "{{ argocd_namespace }}"
+        labels:
+          argocd.argoproj.io/secret-type: repository
+      type: Opaque
+      stringData: "{{ {'type': 'git', 'name': item.name, 'url': item.url} | combine(argocd_repo_auth) }}"
+  loop: "{{ argocd_repos }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: argocd_repo_apply
+  changed_when: "'created' in argocd_repo_apply.stdout or 'configured' in argocd_repo_apply.stdout"
+  no_log: true # le jeton passe dans la commande
+
+- name: Récapitulatif
+  ansible.builtin.debug:
+    msg:
+      - "Argo CD {{ argocd_chart_version }} installé. URL attendue : https://{{ argocd_host }}"
+      - >-
+        Exposer en HTTPS : helm upgrade --install kube12-ingress platform/ingress -n kube-system
+        --set baseDomain={{ base_domain }} --wait (route argocd activée, docs/ingress.md)
+      - >-
+        Mot de passe initial de admin : kubectl -n {{ argocd_namespace }}
+        get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
+      - "Vérifier le tout : ansible-playbook -i inventory tests/argocd.yml"

@@ -1,0 +1,36 @@
+# Application racine (app-of-apps) — environnement LOCAL (kind). Voir docs/gitops.md.
+# À appliquer UNE seule fois à la main : kubectl apply -f bootstrap/root-local.yaml
+# Ensuite tout passe par Git : un push sur la branche suivie suffit.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/KillianBelet/kube-infra
+    # develop tant que les composants ne sont pas sur main ; passer à main ensuite.
+    targetRevision: develop
+    path: apps
+    directory:
+      recurse: true
+      # Seuls apps/common et apps/local sont déployés ici.
+      exclude: "prod/*"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
