@@ -37,6 +37,21 @@ Règles pour que tout marche dans les deux environnements :
 - les volumes persistants utilisent la StorageClass `efs-sc` ;
 - les Ingress utilisent un domaine construit sur une variable (`127.0.0.1.sslip.io` en local).
 
+## Services exposés
+
+Tous en HTTPS via le chart [`platform/ingress`](platform/ingress) : `<service>.<domaine>`, avec
+`<domaine>` = `<IP publique de kube-1>.sslip.io` en prod, `127.0.0.1.sslip.io` en local
+([docs/ingress.md](docs/ingress.md)).
+
+| Service | Hostname | Ticket |
+|---|---|---|
+| application | `app.<domaine>` | #55 |
+| ArgoCD | `argocd.<domaine>` | #35 |
+| Grafana | `grafana.<domaine>` | #47 |
+| Headlamp | `headlamp.<domaine>` | #50 |
+| dex | `dex.<domaine>` | #41 |
+| Keycloak | `keycloak.<domaine>` | #39 |
+
 ## Prérequis
 
 - **Windows** : WSL2 + Ubuntu, et Docker Desktop avec
