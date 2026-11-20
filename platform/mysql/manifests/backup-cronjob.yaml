@@ -1,0 +1,93 @@
+# Sauvegarde quotidienne de la base MySQL vers EFS (#56). Voir docs/database.md § 9.
+# Chaque nuit : dump compressé et horodaté de app_database dans le volume mysql-backups,
+# puis suppression des dumps de plus de RETENTION_DAYS jours.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mysql-backup
+  namespace: database
+  labels:
+    app.kubernetes.io/name: mysql-backup
+    app.kubernetes.io/part-of: mysql
+spec:
+  schedule: "0 3 * * *"
+  timeZone: Europe/Paris
+  # Jamais deux sauvegardes en même temps ; une sauvegarde manquée de plus d'1 h est sautée.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: mysql-backup
+        spec:
+          restartPolicy: Never
+          # Même nœud que la base (schéma « Répartition des pods »), et le volume RWO
+          # de kind est attaché à ce nœud.
+          nodeSelector:
+            kube12/node: kube-2
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            fsGroup: 1001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: backup
+              # Même image que la base : mysqldump de la même version que le serveur.
+              image: docker.io/bitnamilegacy/mysql:8.4.5-debian-12-r0
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: MYSQL_HOST
+                  value: mysql.database.svc.cluster.local
+                - name: DATABASE
+                  value: app_database
+                - name: RETENTION_DAYS
+                  value: "7"
+                - name: MYSQL_PWD
+                  valueFrom:
+                    secretKeyRef:
+                      name: mysql-credentials
+                      key: mysql-root-password
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  set -euo pipefail
+                  file="/backups/${DATABASE}-$(date -u +%Y%m%d-%H%M%S).sql.gz"
+                  # --single-transaction : copie cohérente sans bloquer l'application (InnoDB).
+                  # Écrit d'abord dans un .tmp : un dump interrompu ne ressemble jamais à un dump valide,
+                  # et le .tmp est supprimé si le dump échoue.
+                  trap 'rm -f "$file.tmp"' ERR
+                  mysqldump -h "$MYSQL_HOST" -u root \
+                    --single-transaction --routines --triggers --events \
+                    --databases "$DATABASE" | gzip > "$file.tmp"
+                  mv "$file.tmp" "$file"
+                  echo "Dump écrit : $file ($(du -h "$file" | cut -f1))"
+                  # Rétention : supprime les dumps (et .tmp abandonnés) de plus de RETENTION_DAYS jours.
+                  find /backups -maxdepth 1 -name "${DATABASE}-*.sql.gz*" -type f \
+                    -mmin +$((RETENTION_DAYS * 1440)) -print -delete
+                  ls -lh /backups
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: mysql-backups

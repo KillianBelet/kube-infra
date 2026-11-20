@@ -1,4 +1,4 @@
-# Base de données MySQL (#54)
+# Base de données MySQL (#54) et sauvegardes (#56)
 
 Dépend de : Sealed Secrets (#37), StorageClass `efs-sc` (#28), Argo CD app-of-apps (#36).
 
@@ -24,6 +24,8 @@ Ses fichiers sont sur un volume persistant `efs-sc` : si le pod meurt, les donn�
 | `platform/mysql/values.yaml` | réglages du chart : image, base, utilisateur, volume, ressources, nœud |
 | `platform/mysql/manifests/mysql-credentials.sealed.yaml` | les mots de passe, chiffrés (SealedSecret) |
 | `platform/mysql/seal-credentials.sh` | génère et chiffre de nouveaux mots de passe |
+| `platform/mysql/manifests/backup-cronjob.yaml` | sauvegarde quotidienne de la base (§ 9) |
+| `platform/mysql/manifests/backup-pvc.yaml` | volume `efs-sc` des sauvegardes, séparé de celui de la base |
 | `platform/sealed-secrets/team-cert.crt` | certificat **public** de l'équipe, pour chiffrer sans être connecté au cluster |
 
 ## 2. Comment ça marche
@@ -153,7 +155,7 @@ L'application est dans le namespace `app` : elle ne peut pas lire le Secret `mys
   alors qu'EFS permettrait de remonter le volume ailleurs. Acceptable pour le projet.
 - **NetworkPolicy** : le chart en crée une qui ouvre le port 3306 à tous les pods du cluster (`allowExternal: true`).
   Plus tard, on pourra la limiter aux namespaces de l'application et de la sauvegarde (`networkPolicy.allowExternal: false`
-  et `networkPolicy.ingressNSMatchLabels`).
+  et `networkPolicy.ingressNSMatchLabels`), en autorisant aussi les pods de sauvegarde (`app.kubernetes.io/name: mysql-backup`).
 
 ## 8. Dépannage
 
@@ -161,8 +163,70 @@ L'application est dans le namespace `app` : elle ne peut pas lire le Secret `mys
 |---|---|
 | `mysql-0` bloqué en `ContainerCreating`, événement `FailedMount ... secret "mysql-credentials" not found` (`kubectl -n database describe pod mysql-0`) | SealedSecret non déchiffré : mauvaise clé sur le cluster (§ 3). `kubectl -n database describe sealedsecret mysql-credentials` |
 | SealedSecret : *no key could decrypt secret* | le cluster n'a pas la clé de l'équipe (§ 3) |
-| `mysql-0` en `Pending` | pas de nœud `kube12/node=kube-2`, ou PVC non créé : `kubectl -n database describe pod mysql-0` |
+| `mysql-0` en `Pending` | pas de nœud `kube12/node=kube-2`, ou un des deux PVC absent (`data-mysql-0`, ou `mysql-backups` qui est aussi monté dans la base : le recréer avec `kubectl apply -f platform/mysql/manifests/backup-pvc.yaml`) : `kubectl -n database describe pod mysql-0` |
 | `ErrImagePull` sur `bitnami/mysql` | values non appliquées : l'image doit venir de `bitnamilegacy` |
 | `Access denied for user 'app_user'`, ou `mysql-0` qui redémarre en boucle (sondes en échec) | Secret changé sans changer MySQL : remettre les anciennes valeurs ou suivre § 4 |
 | Redémarrages au premier lancement sur EFS | initialisation lente : augmenter `primary.startupProbe.failureThreshold` |
-| Repartir de zéro (base vide, nouveaux mots de passe) | `efs-sc` est en `Retain` : supprimer l'Application ne supprime pas le volume. Supprimer aussi `kubectl -n database delete pvc data-mysql-0` puis le PV associé (`kubectl get pv`) |
+| Repartir de zéro (base vide, nouveaux mots de passe) | supprimer l'Application ne supprime ni le volume de la base (`data-mysql-0`, créé par le StatefulSet) ni celui des sauvegardes (`mysql-backups`, protégé par `Delete=false,Prune=false`), et `efs-sc` est en `Retain`. Supprimer à la main `kubectl -n database delete pvc data-mysql-0` puis le PV associé (`kubectl get pv`) ; garder `mysql-backups` sauf si l'on veut aussi effacer les sauvegardes |
+
+## 9. Sauvegardes (#56)
+
+Le CronJob `mysql-backup` (namespace `database`) sauvegarde la base **chaque nuit à 3 h (heure de Paris)** :
+
+1. `mysqldump` exporte `app_database` (avec `--single-transaction` : copie cohérente sans bloquer l'application).
+2. Le dump est compressé et écrit dans le volume `mysql-backups` (`efs-sc`, séparé du volume de la base) :
+   `/backups/app_database-AAAAMMJJ-HHMMSS.sql.gz` (heure UTC dans le nom).
+   Il est d'abord écrit en `.tmp`, puis renommé : un dump interrompu n'a jamais l'air d'un dump valide.
+3. **Rétention** : les dumps de plus de `RETENTION_DAYS` jours (7 par défaut) sont supprimés.
+
+Réglages dans `backup-cronjob.yaml` : `schedule` (format cron), `timeZone`, `RETENTION_DAYS`.
+Le job utilise la même image que la base (même version de `mysqldump`), tourne sur kube-2 comme la base,
+sans droits root, et lit le mot de passe root dans le Secret `mysql-credentials`.
+
+### Lancer une sauvegarde à la main et la vérifier
+
+```bash
+kubectl -n database create job backup-manuel --from=cronjob/mysql-backup
+kubectl -n database wait --for=condition=complete job/backup-manuel --timeout=300s
+kubectl -n database logs job/backup-manuel        # « Dump écrit : /backups/app_database-... » puis la liste des dumps
+kubectl -n database delete job backup-manuel
+```
+
+### Restaurer un dump (test #57)
+
+Le volume des sauvegardes est aussi monté **en lecture seule** dans le pod de la base (`/backups`) :
+on rejoue le dump directement depuis `mysql-0`.
+
+```bash
+kubectl -n database exec mysql-0 -c mysql -- ls -l /backups          # choisir un dump
+kubectl -n database exec mysql-0 -c mysql -- bash -c \
+  'MYSQL_PWD="$(cat "$MYSQL_ROOT_PASSWORD_FILE")" && export MYSQL_PWD &&
+   gunzip -c /backups/app_database-AAAAMMJJ-HHMMSS.sql.gz | mysql -u root'
+```
+
+Le dump contient `CREATE DATABASE IF NOT EXISTS` et, pour chaque table, `DROP TABLE IF EXISTS` puis les données :
+les tables du dump reviennent à leur état au moment de la sauvegarde. Une table créée **après** le dump n'est pas
+supprimée. Pour un test propre, couper l'application pendant la restauration (`replicas: 0`, ou
+`kubectl -n app scale deploy <app> --replicas=0`), puis la relancer.
+
+### Tests réalisés (kind, 15/11/2026)
+
+| Test | Résultat |
+|---|---|
+| Job lancé à la main | dump horodaté de 802 octets écrit dans `/backups` |
+| Contenu du dump | `CREATE DATABASE app_database` et les lignes de la table de test |
+| Rétention (fichiers datés de 3, 9 et 10 jours, `RETENTION_DAYS=7`) | dumps de 9 et 10 jours supprimés (y compris un `.tmp`), celui de 3 jours et les autres fichiers gardés |
+| Restauration depuis `mysql-0` | valeur modifiée en base, dump rejoué : valeur d'origine retrouvée |
+| Premier déploiement à neuf | volumes `data-mysql-0` et `mysql-backups` liés tout de suite, sans attendre le premier job |
+| Sauvegarde en échec (mauvais mot de passe) | job en erreur, aucun dump ni `.tmp` laissé, anciens dumps conservés |
+
+**Non testé sur EFS** : à rejouer sur AWS (sauvegarde manuelle puis restauration).
+
+### Dépannage
+
+| Symptôme | Cause / correction |
+|---|---|
+| Job en erreur, `Access denied for user 'root'` | Secret `mysql-credentials` différent du mot de passe dans MySQL (§ 4) |
+| Job en `Pending` | volume `mysql-backups` attaché à un autre nœud (kind) ou pas de nœud `kube-2` : `kubectl -n database describe pod -l job-name=...` |
+| Pas de nouveau dump chaque nuit | `kubectl -n database get cronjob mysql-backup` (colonne `LAST SCHEDULE`) et `kubectl -n database get jobs` |
+| Fichiers `.tmp` dans `/backups` | sauvegarde interrompue : ils sont supprimés par la rétention, à ne pas restaurer |
