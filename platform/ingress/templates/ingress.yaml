@@ -1,0 +1,42 @@
+{{- range $name, $route := .Values.routes }}
+{{- if $route.enabled }}
+{{- $baseDomain := required "baseDomain manquant (ex. 16.192.31.182.sslip.io)" $.Values.baseDomain }}
+{{- $host := printf "%s.%s" $name $baseDomain }}
+{{- $annotations := merge (dict) ($route.annotations | default dict) $.Values.annotations }}
+{{- if $.Values.certManager }}
+{{- $_ := set $annotations "cert-manager.io/cluster-issuer" ($route.issuer | default $.Values.issuer) }}
+{{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  namespace: {{ required (printf "routes.%s.namespace manquant" $name) $route.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ $name }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+    helm.sh/chart: {{ $.Chart.Name }}-{{ $.Chart.Version }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ $.Values.ingressClassName }}
+  tls:
+    - hosts: [{{ $host }}]
+      {{- if $.Values.certManager }}
+      secretName: {{ $name }}-tls
+      {{- end }}
+  rules:
+    - host: {{ $host }}
+      http:
+        paths:
+          - path: {{ $route.path | default "/" }}
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ required (printf "routes.%s.service manquant" $name) $route.service }}
+                port:
+                  number: {{ required (printf "routes.%s.port manquant" $name) $route.port }}
+{{- end }}
+{{- end }}
