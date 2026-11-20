@@ -1,5 +1,6 @@
 # Secrets
 *.pem
+*sealed-secrets-key*.yaml
 *accessKeys.csv
 .vault_pass*
 kubeconfig*
