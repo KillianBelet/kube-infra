@@ -1,0 +1,22 @@
+---
+argocd_chart_repo: https://argoproj.github.io/argo-helm
+argocd_chart_version: 10.18.0 # Argo CD v3.6.1
+argocd_release: argocd
+argocd_namespace: argocd
+argocd_kubeconfig: /etc/kubernetes/admin.conf
+argocd_kubectl: "kubectl --kubeconfig {{ argocd_kubeconfig }}"
+
+# Values du repo (platform/argocd/values.yaml) + valeurs propres à la prod,
+# fusionnées ici et déposées sur kube-1 pour helm. L'Ingress HTTPS n'est pas dans ce chart :
+# c'est la route `argocd` de platform/ingress (hostname = argocd.<baseDomain>, même valeur que base_domain).
+
+argocd_values_file: "{{ playbook_dir }}/../platform/argocd/values.yaml"
+argocd_values_remote: /opt/argocd-values.yaml
+argocd_host: "argocd.{{ base_domain }}"
+argocd_values_prod:
+  global:
+    domain: "{{ argocd_host }}"
+argocd_values: "{{ (lookup('ansible.builtin.file', argocd_values_file) | from_yaml) | combine(argocd_values_prod, recursive=true) }}"
+
+# Dépôts à enregistrer : voir inventory/group_vars/all/argocd.yml
+argocd_repos: []
