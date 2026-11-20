@@ -20,8 +20,8 @@ Durée : **≈ 40 min**, dont ≈ 30 min d'attente. Coût : quelques euros par j
 
 - WSL Ubuntu, AWS CLI configurée, collections Ansible : [infra-aws.md](infra-aws.md) § 2.
 - Le repo à jour sur `develop` (`git pull`) : Argo CD déploie ce qui est **sur GitHub**, pas en local.
-- La dernière sauvegarde de la clé Sealed Secrets (`sealed-secrets-key.yaml`), si des
-  SealedSecrets sont déjà versionnés (§ 3). Elle n'est jamais dans Git.
+- La clé Sealed Secrets de l'équipe (`sealed-secrets-key.yaml`), dans le gestionnaire de mots
+  de passe de l'équipe (§ 3). Elle n'est jamais dans Git.
 
 Toutes les commandes Ansible se lancent depuis `ansible/`, toujours avec `-i inventory`.
 
@@ -54,16 +54,18 @@ Détails et dépannage : [cluster-ansible.md](cluster-ansible.md).
 
 ## 3. Clé Sealed Secrets (avant Argo CD)
 
-Les SealedSecrets du repo ne sont déchiffrables qu'avec la clé privée du **premier** cluster.
-On la remet en place avant que le contrôleur démarre : il la trouve et ne génère pas de nouvelle clé.
+Tous les clusters (kind de chacun, AWS) utilisent **la même clé d'équipe** : les SealedSecrets
+du repo sont chiffrés avec son certificat public, `platform/sealed-secrets/team-cert.crt`
+([database.md](database.md) § 3). On met la clé privée en place avant que le contrôleur démarre :
+il la trouve et ne génère pas la sienne.
 
 ```bash
 kubectl create namespace sealed-secrets
 kubectl apply -f /chemin/hors-git/sealed-secrets-key.yaml
 ```
 
-Pas de sauvegarde (premier cluster, ou aucun SealedSecret versionné) : sauter cette étape,
-puis **sauvegarder la clé générée** dès que le contrôleur tourne (§ 7).
+Sans cette étape, le contrôleur crée sa propre clé : MySQL et Keycloak restent bloqués
+(Secret absent). Rattrapage : § 8.
 
 ## 4. Argo CD
 
@@ -76,9 +78,15 @@ Détails : [argocd.md](argocd.md) § 4.
 
 ## 5. Tout le reste, par Git
 
-L'IP publique est la seule valeur qui change d'un cluster à l'autre. Dans
-`apps/prod/ingress.yaml`, mettre `baseDomain: <IP publique>.sslip.io` (valeur `base_domain`
-du § 1), puis **PR vers `develop`** (branche protégée : une review).
+L'IP publique est la seule valeur qui change d'un cluster à l'autre. Mettre
+`baseDomain: <IP publique>.sslip.io` (valeur `base_domain` du § 1) dans **tous** les fichiers
+de `apps/prod/` qui en ont un (`ingress.yaml`, `keycloak.yaml`…) :
+
+```bash
+grep -rn baseDomain ../apps/prod/
+```
+
+puis **PR vers `develop`** (branche protégée : une review).
 
 Une fois mergée :
 
@@ -115,14 +123,9 @@ par hostname et par semaine ([cert-manager.md](cert-manager.md) § 7).
 
 ## 7. Avant d'éteindre ou de détruire
 
-Sauvegarder la clé Sealed Secrets (elle change tous les 30 jours, les anciennes restent valides) :
-
-```bash
-kubectl -n sealed-secrets get secret -l sealedsecrets.bitnami.com/sealed-secrets-key \
-  -o yaml > /chemin/hors-git/sealed-secrets-key.yaml
-```
-
-À ranger hors du repo (gestionnaire de mots de passe de l'équipe). Puis :
+La clé Sealed Secrets ne change pas (`keyrenewperiod: "0"`) et elle est déjà dans le gestionnaire
+de mots de passe : rien à sauvegarder. Les données (bases MySQL, sauvegardes) sont sur EFS :
+`destroy-aws.yml` les supprime.
 
 ```bash
 ansible-playbook -i inventory aws-power.yml -e power=stopped       # pause : même IP au redémarrage
@@ -142,11 +145,11 @@ Après `destroy-aws.yml`, recommencer au § 1 avec une **nouvelle IP** (donc nou
 | 5 | Application `Unknown` / `ComparisonError` | [gitops.md](gitops.md) § 8 (chemin absent de `develop`, dépôt non enregistré) |
 | 5 | `ingress` en erreur | `baseDomain` non mergé sur `develop`, ou namespace d'une route absent ([ingress.md](ingress.md) § 6) |
 | 6 | certificat `READY=False` | [cert-manager.md](cert-manager.md) § 9 (port 80, quotas) |
-| 6 | SealedSecret non déchiffré | clé du § 3 absente ou différente : la réappliquer, puis `kubectl -n sealed-secrets delete pod -l app.kubernetes.io/name=sealed-secrets` |
+| 6 | SealedSecret non déchiffré (`no key could decrypt secret`) | clé d'équipe absente (§ 3 sauté) : supprimer la clé générée, appliquer celle de l'équipe, redémarrer le contrôleur ([database.md](database.md) § 3) |
 
 ## 9. Limites connues
 
-- L'IP publique est dans Git (`apps/prod/ingress.yaml`) : chaque reconstruction après
+- L'IP publique est dans Git (`baseDomain` dans `apps/prod/`) : chaque reconstruction après
   `destroy-aws.yml` demande une PR. Un domaine fixe (DNS) supprimerait cette étape.
-- La clé Sealed Secrets est sauvegardée à la main (§ 7) : l'oublier avant `destroy-aws.yml`
-  rend les SealedSecrets du repo indéchiffrables ; il faut alors les re-sceller.
+- Une seule clé Sealed Secrets pour tous les clusters : si elle fuit, il faut en générer une
+  nouvelle et re-sceller tous les secrets du repo.
