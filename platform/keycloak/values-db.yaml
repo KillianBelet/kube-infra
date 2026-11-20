@@ -1,0 +1,53 @@
+# Base de Keycloak (#39)
+# Chart : oci://registry-1.docker.io/bitnamicharts/mysql 12.3.5 (MySQL 8.4)
+# Namespace : keycloak. Service : keycloak-db:3306
+# Mêmes réglages que platform/mysql (#54). Pas de PostgreSQL : il refuse un dossier
+# de données qui ne lui appartient pas, et EFS impose son propre uid.
+
+fullnameOverride: keycloak-db
+
+# images Bitnami gratuites déplacées vers bitnamilegacy
+global:
+  security:
+    allowInsecureImages: true
+
+image:
+  registry: docker.io
+  repository: bitnamilegacy/mysql
+  tag: 8.4.5-debian-12-r0
+
+architecture: standalone
+
+auth:
+  existingSecret: keycloak-db-credentials
+  database: keycloak
+  username: keycloak
+
+primary:
+  persistence:
+    enabled: true
+    storageClass: efs-sc
+    accessModes:
+      - ReadWriteOnce
+    size: 1Gi
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 384Mi
+    limits:
+      memory: 768Mi
+
+  startupProbe:
+    failureThreshold: 30
+
+volumePermissions:
+  enabled: false
+
+# seuls les pods keycloak-db-client=true accèdent à la base
+networkPolicy:
+  enabled: true
+  allowExternal: false
+
+metrics:
+  enabled: false

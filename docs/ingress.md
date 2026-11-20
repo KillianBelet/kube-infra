@@ -17,7 +17,7 @@ DNS à gérer. En local : `<service>.127.0.0.1.sslip.io`.
 | Grafana | `grafana.<IP>.sslip.io` | `monitoring` / `kube-prometheus-stack-grafana:80` | #47 |
 | Headlamp | `headlamp.<IP>.sslip.io` | `headlamp` / `headlamp:80` | #50 |
 | dex | `dex.<IP>.sslip.io` | `dex` / `dex:5556` | #41 |
-| Keycloak | `keycloak.<IP>.sslip.io` | `keycloak` / `keycloak:80` | #39 |
+| Keycloak | `keycloak.<IP>.sslip.io` | `keycloak` / `keycloak-http:80` ([keycloak.md](keycloak.md)) | #39 |
 
 Le hostname est le **nom de la route** dans `values.yaml` : pas de hostname écrit à la main ailleurs.
 Les noms de Service/port sont ceux des charts officiels ; à corriger dans `values.yaml` par le
@@ -58,6 +58,7 @@ Cas particuliers :
   (values `configs.params`) pour qu'il parle HTTP à Traefik, qui termine le TLS.
 - **Keycloak / dex** : leur URL publique (`https://keycloak.<IP>.sslip.io`, `https://dex.<IP>.sslip.io`)
   est aussi dans leur propre configuration (hostname Keycloak, `issuer` dex) : même valeur.
+  Pour Keycloak, c'est `baseDomain` dans `apps/<env>/keycloak.yaml`.
 
 ## 4. Déployer
 
