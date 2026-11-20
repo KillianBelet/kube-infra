@@ -38,12 +38,14 @@ ansible/
 ├── ansible.cfg                     inventaire par défaut, SSH multiplexé
 ├── requirements.yml                collections Ansible nécessaires
 ├── site.yml                        construit le cluster (rejouable)
+├── argocd.yml                      bootstrap d'Argo CD, après site.yml (docs/argocd.md)
 ├── local.yml / local-down.yml      environnement local kind
 ├── inventory/
 │   ├── hosts.yml                   groupes control_plane (kube-1) et workers (kube-2, kube-3)
 │   └── group_vars/
 │       ├── all/cluster.yml         versions, IP privées, CIDR, label, StorageClass (commun local/prod)
 │       ├── all/ssh.yml             utilisateur, clé, known_hosts dédié, private_ip
+│       ├── all/argocd.yml          URL des dépôts Git d'Argo CD, variables des jetons (jamais les jetons)
 │       ├── all/aws_outputs.yml     IP publique de kube-1 (généré, ignoré par git)
 │       ├── control_plane.yml       kube-1 joint sur l'IP publique
 │       └── workers.yml             workers joints en rebond par kube-1
@@ -52,9 +54,12 @@ ansible/
     ├── control_plane/              kubeadm init, kubeconfig, jeton de join
     ├── worker/                     kubeadm join
     ├── calico/                     réseau des pods
-    └── efs_csi/                    helm, driver EFS CSI, StorageClass efs-sc
+    ├── efs_csi/                    helm, driver EFS CSI, StorageClass efs-sc
+    └── argocd/                     Argo CD (chart Helm) et Secrets des dépôts Git
 tests/
-└── efs.yml                         test : un volume partagé entre kube-2 et kube-3
+├── efs.yml                         test : un volume partagé entre kube-2 et kube-3
+├── tls.yml                         test : certificat Let's Encrypt (docs/cert-manager.md)
+└── argocd.yml                      test : Argo CD en HTTPS, dépôts « Successful »
 ```
 
 **Règle** : aucune IP ni version en dur dans les rôles ; tout vient de `group_vars`.
@@ -86,7 +91,7 @@ Avec sa propre clé SSH plutôt que `~/.ssh/kube-12` : ajouter `-e ssh_key_path=
 Avant chaque PR qui touche `ansible/` :
 
 ```bash
-ansible-lint site.yml local.yml local-down.yml tests/efs.yml roles   # doit afficher « Passed »
+ansible-lint site.yml argocd.yml local.yml local-down.yml tests/efs.yml tests/tls.yml tests/argocd.yml roles   # doit afficher « Passed »
 ```
 
 Conventions imposées par ansible-lint (profil `production`) : variables d'un rôle préfixées
