@@ -1,0 +1,48 @@
+# dex (#41), local. Voir docs/dex.md.
+# Wave 3 : après Keycloak.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: dex
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://charts.dexidp.io
+      chart: dex
+      targetRevision: 0.26.0
+      helm:
+        releaseName: dex
+        valueFiles:
+          - $values/platform/dex/values.yaml
+    - repoURL: https://github.com/KillianBelet/kube-infra
+      targetRevision: develop
+      ref: values
+    # config (issuer, connecteur Keycloak, clients) + secrets scellés
+    - repoURL: https://github.com/KillianBelet/kube-infra
+      targetRevision: develop
+      path: platform/dex/config
+      helm:
+        releaseName: dex-config
+        valueFiles:
+          - values-local.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: dex
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
