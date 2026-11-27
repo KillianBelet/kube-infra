@@ -1,0 +1,15 @@
+# Secrets de l'application, scellés, déployés dans le namespace app avec elle
+# (deuxième source de apps/common/kube-app.yaml). Voir docs/registry.md.
+# Les fichiers sont ajoutés ici par seal-secrets.sh.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: kube-app
+
+# Créés avant les pods de l'application
+commonAnnotations:
+  argocd.argoproj.io/sync-wave: "-1"
+
+resources: []

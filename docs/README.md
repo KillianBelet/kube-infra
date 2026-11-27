@@ -11,6 +11,7 @@
 | [cluster-ansible.md](cluster-ansible.md) | cluster de prod : inventaire, rôles Ansible, choix techniques, dépannage |
 | [cert-manager.md](cert-manager.md) | certificats TLS Let's Encrypt (HTTP-01 via Traefik) : installation, usage dans une Ingress, test, quotas, dépannage |
 | [database.md](database.md) | base MySQL de l'application : chart, identifiants scellés, clé Sealed Secrets de l'équipe, test de persistance, sauvegardes et restauration |
+| [registry.md](registry.md) | registry privé GHCR : image de l'application, token en lecture seule, secret de pull scellé, vérifications |
 | [gitops.md](gitops.md) | Argo CD app-of-apps : racine `bootstrap/`, Applications `apps/`, sync waves, auto-sync / prune / self-heal, tests, dépannage |
 | [ingress.md](ingress.md) | hostnames `<service>.<IP>.sslip.io` et Ingress HTTPS de tous les services (chart `platform/ingress`) |
 | [keycloak.md](keycloak.md) | Keycloak : base, secrets, realm `kube`, client dex, tests |

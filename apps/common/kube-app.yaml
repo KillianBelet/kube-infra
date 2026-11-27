@@ -1,4 +1,5 @@
-# Application métier : manifests du dossier deploy/ du repo applicatif.
+# Application métier : manifests du dossier deploy/ du repo applicatif, et ses secrets scellés
+# (platform/kube-app, docs/registry.md).
 # Wave 3 : déployée après l'infra (Traefik, certificats, Ingress).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -11,12 +12,16 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  source:
-    repoURL: https://github.com/KillianBelet/kube-app
-    targetRevision: HEAD
-    path: deploy
-    directory:
-      recurse: true
+  sources:
+    - repoURL: https://github.com/KillianBelet/kube-app
+      targetRevision: HEAD
+      path: deploy
+      directory:
+        recurse: true
+    # imagePullSecret ghcr-pull (#38)
+    - repoURL: https://github.com/KillianBelet/kube-infra
+      targetRevision: develop
+      path: platform/kube-app
   destination:
     server: https://kubernetes.default.svc
     namespace: app
@@ -26,6 +31,7 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
     retry:
       limit: 5
       backoff:
