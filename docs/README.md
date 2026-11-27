@@ -5,6 +5,7 @@
 | [../README.md](../README.md) | vue d'ensemble, environnement local (kind), prise en main |
 | [infra-aws.md](infra-aws.md) | infrastructure AWS : ce qui est créé, prérequis, créer / éteindre / détruire, accès équipe, coûts |
 | [runbook.md](runbook.md) | **reconstruire le cluster de zéro** : AWS → Kubernetes → Argo CD → services en HTTPS, vérifications, destruction |
+| [conventions.md](conventions.md) | **règles communes** : requests/limits, labels recommandés, Helm ou kustomize, vérification (`scripts/check-conventions.py`) |
 | [cluster-ansible.md](cluster-ansible.md) | cluster de prod : inventaire, rôles Ansible, choix techniques, dépannage |
 | [cert-manager.md](cert-manager.md) | certificats TLS Let's Encrypt (HTTP-01 via Traefik) : installation, usage dans une Ingress, test, quotas, dépannage |
 | [database.md](database.md) | base MySQL de l'application : chart, identifiants scellés, clé Sealed Secrets de l'équipe, test de persistance, sauvegardes et restauration |

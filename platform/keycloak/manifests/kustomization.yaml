@@ -7,6 +7,13 @@ namespace: keycloak
 commonAnnotations:
   argocd.argoproj.io/sync-wave: "-1"
 
+# Labels communs : docs/conventions.md (#80)
+labels:
+  - pairs:
+      app.kubernetes.io/name: keycloak
+      app.kubernetes.io/part-of: keycloak
+      app.kubernetes.io/component: config
+
 resources:
   - keycloak-admin.sealed.yaml
   - keycloak-realm-secrets.sealed.yaml
