@@ -5,6 +5,23 @@ name: {{ kind_cluster_name }}
 networking:
   disableDefaultCNI: true # Calico, comme sur AWS
   podSubnet: {{ pod_cidr }}
+# Métriques du control plane lisibles par Prometheus (#45), comme en prod (kubeadm-config.yaml.j2)
+kubeadmConfigPatches:
+  - |
+    kind: ClusterConfiguration
+    controllerManager:
+      extraArgs:
+        bind-address: "0.0.0.0"
+    scheduler:
+      extraArgs:
+        bind-address: "0.0.0.0"
+    etcd:
+      local:
+        extraArgs:
+          listen-metrics-urls: "http://0.0.0.0:2381"
+  - |
+    kind: KubeProxyConfiguration
+    metricsBindAddress: "0.0.0.0:10249"
 nodes:
 {% for n in nodes %}
   - role: {{ 'control-plane' if n.role == 'control_plane' else 'worker' }}

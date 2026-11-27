@@ -1,0 +1,13 @@
+# Local (kind) : moins de rétention, moins de disque.
+prometheus:
+  prometheusSpec:
+    retention: 2d
+    retentionSize: 1500MB
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: efs-sc
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 2Gi

@@ -38,6 +38,25 @@ apiServer:
     - name: oidc-groups-claim
       value: "{{ control_plane_oidc_groups_claim }}"
 {% endif %}
+# Métriques lues par Prometheus (#45, docs/monitoring.md § 3) : écoute sur toutes les
+# interfaces au lieu de 127.0.0.1. Ports ouverts entre nœuds seulement (security group).
+controllerManager:
+  extraArgs:
+    - name: bind-address
+      value: "0.0.0.0"
+scheduler:
+  extraArgs:
+    - name: bind-address
+      value: "0.0.0.0"
+etcd:
+  local:
+    extraArgs:
+      - name: listen-metrics-urls
+        value: "http://0.0.0.0:2381"
+---
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+kind: KubeProxyConfiguration
+metricsBindAddress: "0.0.0.0:10249"
 ---
 apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration
