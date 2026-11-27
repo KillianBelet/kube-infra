@@ -121,3 +121,16 @@ ansible-playbook -i inventory kubectl-oidc.yml   # installe kubelogin, écrit ~/
 export KUBECONFIG=~/.kube-12/kubeconfig-oidc
 kubectl auth whoami                                 # <login>@kube12.local + groupes Keycloak
 ```
+
+## Restaurer la base de données
+
+La base MySQL de l'application est sauvegardée chaque nuit sur EFS (#56). Pour revenir à une sauvegarde :
+
+```bash
+./platform/mysql/restore.sh            # liste les dumps
+./platform/mysql/restore.sh latest     # restaure le plus récent, après confirmation
+./platform/mysql/test-restore.sh       # test complet : sauvegarde, modification, restauration
+```
+
+Avant de restaurer, le script sauvegarde l'état actuel. Couper l'application pendant la restauration, copier un dump
+hors du cluster : [docs/database.md](docs/database.md) § 10.

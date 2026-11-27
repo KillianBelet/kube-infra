@@ -1,0 +1,8 @@
+# Config de dex (#41). Voir docs/dex.md.
+
+# Prod : passé par apps/prod/dex.yaml. Local : values-local.yaml.
+baseDomain: ""
+
+# dex appelle Keycloak par son Service (le navigateur garde l'URL publique).
+# Vide : tout passe par https://keycloak.<baseDomain>.
+keycloakInternalURL: http://keycloak-http.keycloak.svc.cluster.local
