@@ -113,6 +113,15 @@ kubectl get nodes -L kube12/node
 > `printf '[automount]\noptions = "metadata,umask=22,fmask=11"\n' | sudo tee -a /etc/wsl.conf`
 > puis `wsl --shutdown` dans PowerShell.
 
+**Accès personnel (OIDC, #44)** : une fois dex et l'OIDC de l'apiserver en place, chacun utilise son compte
+Keycloak au lieu du kubeconfig admin. Voir [`docs/kubectl-oidc.md`](docs/kubectl-oidc.md).
+
+```bash
+ansible-playbook -i inventory kubectl-oidc.yml   # installe kubelogin, écrit ~/.kube-12/kubeconfig-oidc
+export KUBECONFIG=~/.kube-12/kubeconfig-oidc
+kubectl auth whoami                                 # <login>@kube12.local + groupes Keycloak
+```
+
 ## Restaurer la base de données
 
 La base MySQL de l'application est sauvegardée chaque nuit sur EFS (#56). Pour revenir à une sauvegarde :

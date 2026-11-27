@@ -1,0 +1,15 @@
+---
+# OIDC du cluster : dex est l'issuer unique (#41, docs/dex.md).
+# Utilisé par kubectl-oidc.yml (#44). L'apiserver (#42) doit pointer sur le même issuer
+# et le même client : control_plane_oidc_issuer_url / control_plane_oidc_client_id.
+oidc_issuer_url: "https://dex.{{ base_domain }}"
+oidc_client_id: kubernetes
+oidc_scopes: [email, groups, profile]
+
+# kubelogin (plugin kubectl oidc-login), installé dans ~/.local/bin comme kind/kubectl/helm
+kubelogin_version: v1.36.4
+kubelogin_sha256:
+  linux_amd64: 9e8baeb4905d35a301304af2548324997add512fe94ab20e65993d167212bf85
+  linux_arm64: 669c2d3bcc6766351ad5a7b03971792b4e7a55117b335a12d9858d43a525d9dc
+  darwin_amd64: 7927b10c122b55dd4d9632f75d56752bfdc5f7b6ad3104615115c02f5f55e4f0
+  darwin_arm64: 5aa470d059a9672d732439474678ac05a0de5623ad3af54966b8fe1ac7df4254
