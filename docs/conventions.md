@@ -1,8 +1,9 @@
 # Conventions des manifests (#80)
 
 Règles communes à tous les composants : ressources, labels, Helm ou kustomize. Vérifiées par
-`scripts/check-conventions.py`, sans cluster. La ValidatingAdmissionPolicy (#52) peut ensuite
-les imposer à l'apiserver.
+`scripts/check-conventions.py`, sans cluster. Les ValidatingAdmissionPolicy (#52,
+[admission-policies.md](admission-policies.md)) imposent déjà à l'apiserver les requests et la limite
+mémoire ; la limite CPU et les labels ne sont vérifiés que par le script.
 
 ## 1. Ressources : requests et limits sur chaque conteneur
 
@@ -22,7 +23,7 @@ reprennent souvent les ressources du conteneur principal.
 | Composant | requests (cpu / mem) | limits (cpu / mem) |
 |---|---|---|
 | Traefik | 50m / 64Mi | 500m / 256Mi |
-| cert-manager (controller, webhook, cainjector) | 10m / 32-64Mi | 100-200m / 128-256Mi |
+| cert-manager (controller, webhook, cainjector) | 10m / 32-64Mi | 100-200m / 128-512Mi |
 | Sealed Secrets | 10m / 32Mi | 200m / 128Mi |
 | Argo CD (server, repo-server, controller) | 25-50m / 128-256Mi | 500m-1 / 512Mi-1Gi |
 | MySQL (app), MySQL Keycloak | 50-100m / 384-512Mi | 1 / 768Mi-1Gi |

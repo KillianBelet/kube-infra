@@ -1,0 +1,31 @@
+# ValidatingAdmissionPolicy (#52). Voir docs/admission-policies.md.
+# Wave -1 : en place avant tous les composants, qui sont donc contrôlés dès leur création.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: admission-policies
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/KillianBelet/kube-infra
+    targetRevision: develop
+    # Pas de recurse : les manifests de test (../tests) ne sont jamais déployés.
+    path: platform/admission-policies/manifests
+  destination:
+    # Objets cluster-scoped : pas de namespace.
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

@@ -8,7 +8,8 @@
 # scellés avec elle ne se déchiffrent plus sur les autres clusters. "0" (avec les guillemets) = jamais.
 keyrenewperiod: "0"
 
-# Labels et ressources : docs/conventions.md (#80)
+# Labels et ressources : docs/conventions.md (#80). Ressources exigées par la policy
+# kube12-require-resources (docs/admission-policies.md).
 commonLabels:
   app.kubernetes.io/part-of: sealed-secrets
 

@@ -1,0 +1,17 @@
+# Refusé : aucun tag (le port du registre n’est pas un tag)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-untagged
+  namespace: default
+spec:
+  selector:
+    matchLabels: {app: test-untagged}
+  template:
+    metadata:
+      labels: {app: test-untagged}
+    spec:
+      containers:
+        - name: app
+          image: registry.example.com:5000/team/app
+          resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 64Mi}}

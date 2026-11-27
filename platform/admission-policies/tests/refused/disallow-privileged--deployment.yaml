@@ -1,0 +1,18 @@
+# Refusé : conteneur privileged
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-privileged
+  namespace: default
+spec:
+  selector:
+    matchLabels: {app: test-privileged}
+  template:
+    metadata:
+      labels: {app: test-privileged}
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.29
+          resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 64Mi}}
+          securityContext: {privileged: true}

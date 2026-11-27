@@ -1,0 +1,17 @@
+# Refusé : tag :latest
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-latest
+  namespace: default
+spec:
+  selector:
+    matchLabels: {app: test-latest}
+  template:
+    metadata:
+      labels: {app: test-latest}
+    spec:
+      containers:
+        - name: app
+          image: nginx:latest
+          resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 64Mi}}

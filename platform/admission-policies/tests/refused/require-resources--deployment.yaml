@@ -1,0 +1,16 @@
+# Refusé : aucune ressource
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-no-resources
+  namespace: default
+spec:
+  selector:
+    matchLabels: {app: test-no-resources}
+  template:
+    metadata:
+      labels: {app: test-no-resources}
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.29

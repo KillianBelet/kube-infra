@@ -1,0 +1,71 @@
+# Interdit les images en :latest ou sans tag (équivalent à :latest) (#52).
+# Une image épinglée par digest (@sha256:...) est acceptée. Voir docs/admission-policies.md.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: kube12-disallow-latest-tag
+spec:
+  # En cas d'erreur d'évaluation, la requête est refusée.
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods", "pods/ephemeralcontainers"]
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+      - apiGroups: ["batch"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["jobs", "cronjobs"]
+  matchConditions:
+    # À la mise à jour, on ne contrôle que si les pods décrits changent. Sans cela, un objet
+    # créé avant la policy ne pourrait plus être réduit à 0 réplica pendant un rolling update,
+    # ni perdre un finalizer.
+    - name: pods-modifies
+      expression: >-
+        request.operation != 'UPDATE' ||
+        (object.kind == 'Pod' ? object.spec != oldObject.spec :
+        object.kind == 'CronJob' ? object.spec.jobTemplate != oldObject.spec.jobTemplate :
+        object.spec.template != oldObject.spec.template)
+  variables:
+    - name: podSpec
+      expression: >-
+        object.kind == 'Pod' ? object.spec :
+        object.kind == 'CronJob' ? object.spec.jobTemplate.spec.template.spec :
+        object.spec.template.spec
+    - name: containers
+      expression: >-
+        variables.podSpec.containers +
+        (has(variables.podSpec.initContainers) ? variables.podSpec.initContainers : []) +
+        (has(variables.podSpec.ephemeralContainers) ? variables.podSpec.ephemeralContainers : [])
+    - name: violations
+      expression: >-
+        variables.containers.filter(c,
+          c.image.endsWith(':latest') || c.image.contains(':latest@') ||
+          (!c.image.contains('@') && !c.image.matches(':[^/]+$'))
+        ).map(c, c.name + ' (' + c.image + ')')
+  validations:
+    - expression: "size(variables.violations) == 0"
+      messageExpression: >-
+        'Tag :latest interdit (ou tag absent) : ' + variables.violations.join(', ') + '. Indiquer un tag de version ou un digest.'
+      message: "Tag :latest interdit (ou tag absent). Indiquer un tag de version ou un digest."
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: kube12-disallow-latest-tag
+spec:
+  policyName: kube12-disallow-latest-tag
+  validationActions: ["Deny"]
+  matchResources:
+    # Namespaces système exemptés (Calico, CoreDNS, driver EFS, local-path de kind).
+    # Le label kubernetes.io/metadata.name est posé par l'apiserver et ne peut pas être falsifié.
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: ["kube-system", "kube-public", "kube-node-lease", "local-path-storage"]

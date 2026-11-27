@@ -41,7 +41,8 @@ additionalArguments:
   - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
   - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
 
-# Labels et ressources : docs/conventions.md (#80)
+# Labels et ressources : docs/conventions.md (#80). Ressources exigées par la policy
+# kube12-require-resources (docs/admission-policies.md).
 commonLabels:
   app.kubernetes.io/part-of: traefik
 

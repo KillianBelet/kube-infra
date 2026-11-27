@@ -1,0 +1,11 @@
+# Accepté : image épinglée par digest
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-ok-digest
+  namespace: default
+spec:
+  containers:
+    - name: app
+      image: nginx@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 64Mi}}

@@ -1,0 +1,22 @@
+# Accepté : Deployment conforme
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-ok
+  namespace: default
+spec:
+  selector:
+    matchLabels: {app: test-ok}
+  template:
+    metadata:
+      labels: {app: test-ok}
+    spec:
+      initContainers:
+        - name: init
+          image: busybox:1.37
+          resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 64Mi}}
+      containers:
+        - name: app
+          image: nginx:1.29
+          resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 64Mi}}
+          securityContext: {privileged: false}

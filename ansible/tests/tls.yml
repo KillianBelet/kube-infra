@@ -61,7 +61,7 @@
                       - name: whoami
                         image: traefik/whoami:v1.12.0
                         ports: [{containerPort: 80}]
-                        resources: {requests: {cpu: 5m, memory: 16Mi}}
+                        resources: {requests: {cpu: 5m, memory: 16Mi}, limits: {memory: 64Mi}}
               ---
               apiVersion: v1
               kind: Service

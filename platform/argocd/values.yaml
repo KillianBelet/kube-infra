@@ -14,6 +14,9 @@ global:
   # hostname de la route, soit argocd.<baseDomain> du chart platform/ingress.
   domain: argocd.127.0.0.1.sslip.io
 
+# Chaque conteneur a des requests et une limite mémoire : exigé par la policy
+# kube12-require-resources (docs/admission-policies.md).
+
 configs:
   params:
     # TLS terminé par Traefik : le serveur Argo CD parle HTTP (Service argocd-server:80,
@@ -64,7 +67,7 @@ repoServer:
       memory: 128Mi
     limits:
       cpu: "1"
-      memory: 512Mi
+      memory: 768Mi
 
 applicationSet:
   resources:
@@ -82,17 +85,17 @@ redis:
       memory: 32Mi
     limits:
       cpu: 200m
-      memory: 128Mi
+      memory: 256Mi
 
 # Job qui génère le mot de passe de redis à l'installation
 redisSecretInit:
   resources:
     requests:
       cpu: 10m
-      memory: 32Mi
+      memory: 64Mi
     limits:
       cpu: 100m
-      memory: 64Mi
+      memory: 256Mi
 
 # Pas de Dex : la connexion SSO passera directement par Keycloak (OIDC, ticket auth).
 dex:

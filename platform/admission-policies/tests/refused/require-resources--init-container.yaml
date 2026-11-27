@@ -1,0 +1,21 @@
+# Refusé : initContainer sans ressources
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: test-init-resources
+  namespace: default
+spec:
+  serviceName: test-init-resources
+  selector:
+    matchLabels: {app: test-init-resources}
+  template:
+    metadata:
+      labels: {app: test-init-resources}
+    spec:
+      initContainers:
+        - name: init
+          image: busybox:1.37
+      containers:
+        - name: app
+          image: nginx:1.29
+          resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 64Mi}}

@@ -1,0 +1,18 @@
+# Refusé : DaemonSet privileged
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: test-privileged-ds
+  namespace: default
+spec:
+  selector:
+    matchLabels: {app: test-privileged-ds}
+  template:
+    metadata:
+      labels: {app: test-privileged-ds}
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.29
+          resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 64Mi}}
+          securityContext: {privileged: true}
