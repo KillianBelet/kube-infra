@@ -12,6 +12,7 @@
 | [cert-manager.md](cert-manager.md) | certificats TLS Let's Encrypt (HTTP-01 via Traefik) : installation, usage dans une Ingress, test, quotas, dépannage |
 | [database.md](database.md) | base MySQL de l'application : chart, identifiants scellés, clé Sealed Secrets de l'équipe, test de persistance, sauvegardes et restauration |
 | [gitops.md](gitops.md) | Argo CD app-of-apps : racine `bootstrap/`, Applications `apps/`, sync waves, auto-sync / prune / self-heal, tests, dépannage |
+| [monitoring.md](monitoring.md) | kube-prometheus-stack : Prometheus, Alertmanager, node-exporter, métriques du control plane, vérification des targets |
 | [ingress.md](ingress.md) | hostnames `<service>.<IP>.sslip.io` et Ingress HTTPS de tous les services (chart `platform/ingress`) |
 | [keycloak.md](keycloak.md) | Keycloak : base, secrets, realm `kube`, client dex, tests |
 | [dex.md](dex.md) | dex : issuer OIDC du cluster, connecteur Keycloak, clients, secrets, tests |

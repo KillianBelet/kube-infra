@@ -1,0 +1,133 @@
+# kube-prometheus-stack (#45) : Prometheus, Alertmanager, node-exporter, kube-state-metrics.
+# Chart : kube-prometheus-stack 94.1.0 (https://prometheus-community.github.io/helm-charts)
+# Namespace : monitoring. Voir docs/monitoring.md.
+# Valeurs propres à chaque environnement : values-local.yaml, apps/prod/monitoring.yaml.
+
+# Noms courts : kube-prometheus-stack-prometheus, kube-prometheus-stack-alertmanager...
+fullnameOverride: kube-prometheus-stack
+
+# Labels : docs/conventions.md (#80). Le chart pose déjà part-of: kube-prometheus-stack (nom de
+# l'Application) ; name est ajouté plus bas là où il manque (pas en commonLabels : doublon).
+
+crds:
+  enabled: true
+
+# Grafana : #47
+grafana:
+  enabled: false
+
+# ---------- Prometheus ----------
+prometheus:
+  prometheusSpec:
+    # ServiceMonitor, PodMonitor et PrometheusRule de tous les namespaces, sans label imposé
+    # (l'app #58 et les composants déclarent les leurs).
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    scrapeConfigSelectorNilUsesHelmValues: false
+
+    retention: 7d
+    retentionSize: 8GB
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: efs-sc
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 10Gi
+
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1536Mi
+
+    # Le conteneur config-reloader (ajouté par l'opérateur) prend les ressources de
+    # prometheusOperator.prometheusConfigReloader.resources.
+
+# ---------- Alertmanager ----------
+alertmanager:
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: efs-sc
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 1Gi
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+# ---------- Opérateur ----------
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+  # Jobs qui créent le certificat du webhook à l'installation
+  admissionWebhooks:
+    patch:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+      podLabels:
+        app.kubernetes.io/name: kube-prometheus-stack-admission-patch
+
+# ---------- Exporters ----------
+# node-exporter : DaemonSet, un pod par nœud (kube-1 compris, sans taint)
+# (name et part-of posés par les sous-charts)
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 64Mi
+
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# ---------- Composants du control plane ----------
+# kubeadm les fait écouter sur 127.0.0.1 par défaut : les adresses de métriques sont ouvertes
+# dans la config kubeadm (ansible/roles/control_plane/templates/kubeadm-config.yaml.j2) et
+# dans celle de kind (ansible/templates/kind-config.yaml.j2). Voir docs/monitoring.md § 3.
+kubeControllerManager:
+  enabled: true
+kubeScheduler:
+  enabled: true
+kubeEtcd:
+  enabled: true
+kubeProxy:
+  enabled: true

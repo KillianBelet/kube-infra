@@ -30,6 +30,8 @@ reprennent souvent les ressources du conteneur principal.
 | Sauvegarde MySQL (CronJob) | 50m / 64Mi | 500m / 256Mi |
 | Keycloak | 100m / 768Mi | 2 / 1Gi |
 | dex | 10m / 32Mi | 200m / 128Mi |
+| Prometheus | 100m / 512Mi | 1 / 1536Mi |
+| Alertmanager, opérateur, node-exporter, kube-state-metrics | 10-20m / 32-64Mi | 100-200m / 64-256Mi |
 
 ## 2. Labels recommandés
 
@@ -50,6 +52,9 @@ D'où ils viennent :
 - **manifests bruts** : `labels` dans le `kustomization.yaml` du dossier pour ce qui est commun,
   `app.kubernetes.io/name` dans le fichier quand il change d'une ressource à l'autre.
 - **chart `platform/ingress`** : `name` et `part-of` = nom de la route, `component: ingress`.
+- **kube-prometheus-stack** : le chart pose `part-of` partout, mais pas `name` sur ses Services, règles et
+  ServiceMonitors, et `commonLabels` créerait des doublons ailleurs. Le script ne lui demande que `part-of`
+  (`NAME_OPTIONAL`) ; ses pods ont bien `name`.
 
 Ne jamais ajouter de label dans un `selector` (Deployment, StatefulSet, Service) ni dans les
 `volumeClaimTemplates` d'un StatefulSet : ces champs ne sont pas modifiables, Argo CD échouerait
