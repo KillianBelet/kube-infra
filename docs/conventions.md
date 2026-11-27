@@ -28,6 +28,7 @@ reprennent souvent les ressources du conteneur principal.
 | MySQL (app), MySQL Keycloak | 50-100m / 384-512Mi | 1 / 768Mi-1Gi |
 | Sauvegarde MySQL (CronJob) | 50m / 64Mi | 500m / 256Mi |
 | Keycloak | 100m / 768Mi | 2 / 1Gi |
+| dex | 10m / 32Mi | 200m / 128Mi |
 
 ## 2. Labels recommandés
 
@@ -43,7 +44,7 @@ sur **toutes** les ressources et sur les modèles de pods :
 
 D'où ils viennent :
 - **charts Helm** : `name`, `instance` et `managed-by` sont posés par le chart ; `part-of` par
-  `commonLabels` (Traefik, Sealed Secrets, MySQL, Keycloak), `global.commonLabels` (cert-manager) ;
+  `commonLabels` (Traefik, Sealed Secrets, MySQL, Keycloak, dex), `global.commonLabels` (cert-manager) ;
   Argo CD pose déjà `part-of: argocd`.
 - **manifests bruts** : `labels` dans le `kustomization.yaml` du dossier pour ce qui est commun,
   `app.kubernetes.io/name` dans le fichier quand il change d'une ressource à l'autre.

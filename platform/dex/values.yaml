@@ -29,9 +29,14 @@ securityContext:
   capabilities:
     drop: ["ALL"]
 
+# Labels et ressources : docs/conventions.md (#80)
+commonLabels:
+  app.kubernetes.io/part-of: dex
+
 resources:
   requests:
     cpu: 10m
     memory: 32Mi
   limits:
+    cpu: 200m
     memory: 128Mi
