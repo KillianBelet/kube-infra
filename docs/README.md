@@ -11,6 +11,7 @@
 | [gitops.md](gitops.md) | Argo CD app-of-apps : racine `bootstrap/`, Applications `apps/`, sync waves, auto-sync / prune / self-heal, tests, dépannage |
 | [ingress.md](ingress.md) | hostnames `<service>.<IP>.sslip.io` et Ingress HTTPS de tous les services (chart `platform/ingress`) |
 | [keycloak.md](keycloak.md) | Keycloak : base, secrets, realm `kube`, client dex, tests |
+| [dex.md](dex.md) | dex : issuer OIDC du cluster, connecteur Keycloak, clients, secrets, tests |
 
 Chaque composant ajouté au cluster (Traefik, ArgoCD, Keycloak…) a sa page ici :
 ce qu'il fait, comment le déployer, comment vérifier qu'il marche, pannes connues.

@@ -16,7 +16,7 @@ DNS à gérer. En local : `<service>.127.0.0.1.sslip.io`.
 | ArgoCD | `argocd.<IP>.sslip.io` | `argocd` / `argocd-server:80` | #35 |
 | Grafana | `grafana.<IP>.sslip.io` | `monitoring` / `kube-prometheus-stack-grafana:80` | #47 |
 | Headlamp | `headlamp.<IP>.sslip.io` | `headlamp` / `headlamp:80` | #50 |
-| dex | `dex.<IP>.sslip.io` | `dex` / `dex:5556` | #41 |
+| dex | `dex.<IP>.sslip.io` | `dex` / `dex:5556` ([dex.md](dex.md)) | #41 |
 | Keycloak | `keycloak.<IP>.sslip.io` | `keycloak` / `keycloak-http:80` ([keycloak.md](keycloak.md)) | #39 |
 
 Le hostname est le **nom de la route** dans `values.yaml` : pas de hostname écrit à la main ailleurs.

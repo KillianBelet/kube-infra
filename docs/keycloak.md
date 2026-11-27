@@ -80,7 +80,7 @@ service :
 |---|---|---|
 | mot de passe MySQL | `ALTER USER` sur `keycloak-db-0` ([database.md](database.md) § 4) | `KEYCLOAK_DB_PASSWORD=... KEYCLOAK_DB_ROOT_PASSWORD=... ./seal-secrets.sh` |
 | admin Keycloak | console, realm `master` → Users → admin → Credentials | `KC_BOOTSTRAP_ADMIN_PASSWORD=... ./seal-secrets.sh` |
-| secret du client dex | console, realm `kube` → Clients → dex → Credentials → Regenerate | `REALM_SECRET_DEX_CLIENT=... ./seal-secrets.sh` + SealedSecret de dex |
+| secret du client dex | console, realm `kube` → Clients → dex → Credentials → Regenerate | `KEYCLOAK_CLIENT_SECRET=... ./platform/dex/seal-secrets.sh` (scelle les deux côtés, [dex.md](dex.md) § 3) |
 
 Un utilisateur qui change son propre mot de passe n'a rien à resceller.
 
@@ -167,18 +167,10 @@ par l'import : faire la même modification dans la console. À l'inverse, une mo
 - **`xforwarded`** : Traefik envoie `X-Forwarded-*` et pas `Forwarded`.
 - **Une seule instance**, sans `nodeSelector`.
 
-## 8. Pour dex (#41)
+## 8. dex (#41)
 
-| Connecteur OIDC de dex | Valeur |
-|---|---|
-| `issuer` | `https://keycloak.<baseDomain>/realms/kube` |
-| `clientID` | `dex` |
-| `clientSecret` | `REALM_SECRET_DEX_CLIENT`, scellé aussi dans le namespace `dex` |
-| `redirectURI` | `https://dex.<baseDomain>/callback` |
-| groupes | claim `groups` (`insecureEnableGroups: true`, scopes `openid profile email`) |
-
-En local, `keycloak.127.0.0.1.sslip.io` pointe sur le pod lui-même : dex ne joindra pas Keycloak sans réécriture DNS
-dans CoreDNS, et le certificat de Traefik est auto-signé. En prod le nom résout l'IP de kube-1, pas de souci.
+dex se connecte au realm avec le client `dex`. Il appelle Keycloak par le Service `keycloak-http`, et le navigateur
+par l'URL publique : voir [dex.md](dex.md).
 
 ## 9. Dépannage
 
