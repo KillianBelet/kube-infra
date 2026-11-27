@@ -49,6 +49,7 @@
                 containers:
                   - name: c
                     image: busybox:1.37
+                    resources: {requests: {cpu: 5m, memory: 16Mi}, limits: {memory: 64Mi}}
                     command: [sh, -c, 'echo "{{ message }}" > /data/test.txt']
                     volumeMounts: [{name: d, mountPath: /data}]
                 volumes: [{name: d, persistentVolumeClaim: {claimName: shared}}]
@@ -72,6 +73,7 @@
                 containers:
                   - name: c
                     image: busybox:1.37
+                    resources: {requests: {cpu: 5m, memory: 16Mi}, limits: {memory: 64Mi}}
                     command: [cat, /data/test.txt]
                     volumeMounts: [{name: d, mountPath: /data}]
                 volumes: [{name: d, persistentVolumeClaim: {claimName: shared}}]

@@ -1,0 +1,17 @@
+# Accepté : CronJob conforme
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: test-ok-cron
+  namespace: default
+spec:
+  schedule: "0 3 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: app
+              image: busybox:1.37
+              resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 64Mi}}

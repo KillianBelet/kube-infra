@@ -1,0 +1,17 @@
+# Refusé : tag :latest dans un CronJob
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: test-latest-cron
+  namespace: default
+spec:
+  schedule: "0 3 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: app
+              image: busybox:latest
+              resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 64Mi}}

@@ -7,6 +7,7 @@ L'Application racine lit le dossier `apps/` du repo infra, et chaque fichier de 
 ```
 bootstrap/root-<env>.yaml   (kubectl apply, une fois)
   └─ Application "root"  ──► apps/common/ + apps/<env>/   (repo kube-infra)
+        ├─ vague -1 : admission-policies                    ──► platform/admission-policies/manifests/
         ├─ vague 0 : sealed-secrets, traefik, cert-manager      ──► platform/<composant>/values.yaml
         ├─ vague 1 : cert-manager-issuers                       ──► platform/cert-manager/issuers/
         ├─ vague 2 : ingress                                    ──► platform/ingress/ (chart #71)
@@ -31,6 +32,7 @@ pour lire `platform/<composant>/values.yaml` : les valeurs restent à un seul en
 
 | Application | Vague | Source | Namespace |
 |---|---|---|---|
+| `admission-policies` | -1 | `platform/admission-policies/manifests/` ([admission-policies.md](admission-policies.md)) | cluster |
 | `sealed-secrets` | 0 | chart `sealed-secrets` 2.22.0 | `sealed-secrets` |
 | `traefik` | 0 | chart `traefik` 42.3.0 | `traefik` |
 | `cert-manager` | 0 | `oci://quay.io/jetstack/charts/cert-manager` v1.21.3 | `cert-manager` |

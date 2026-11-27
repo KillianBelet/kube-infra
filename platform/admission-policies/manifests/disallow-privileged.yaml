@@ -1,0 +1,70 @@
+# Interdit les conteneurs privileged hors namespaces système (#52).
+# Voir docs/admission-policies.md.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: kube12-disallow-privileged
+spec:
+  # En cas d'erreur d'évaluation, la requête est refusée.
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods", "pods/ephemeralcontainers"]
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+      - apiGroups: ["batch"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["jobs", "cronjobs"]
+  matchConditions:
+    # À la mise à jour, on ne contrôle que si les pods décrits changent. Sans cela, un objet
+    # créé avant la policy ne pourrait plus être réduit à 0 réplica pendant un rolling update,
+    # ni perdre un finalizer.
+    - name: pods-modifies
+      expression: >-
+        request.operation != 'UPDATE' ||
+        (object.kind == 'Pod' ? object.spec != oldObject.spec :
+        object.kind == 'CronJob' ? object.spec.jobTemplate != oldObject.spec.jobTemplate :
+        object.spec.template != oldObject.spec.template)
+  variables:
+    - name: podSpec
+      expression: >-
+        object.kind == 'Pod' ? object.spec :
+        object.kind == 'CronJob' ? object.spec.jobTemplate.spec.template.spec :
+        object.spec.template.spec
+    - name: containers
+      expression: >-
+        variables.podSpec.containers +
+        (has(variables.podSpec.initContainers) ? variables.podSpec.initContainers : []) +
+        (has(variables.podSpec.ephemeralContainers) ? variables.podSpec.ephemeralContainers : [])
+    - name: violations
+      expression: >-
+        variables.containers.filter(c,
+          has(c.securityContext) && has(c.securityContext.privileged) && c.securityContext.privileged
+        ).map(c, string(c.name))
+  validations:
+    - expression: "size(variables.violations) == 0"
+      messageExpression: >-
+        'Conteneur privileged interdit hors namespaces système : ' + variables.violations.join(', ') + '. Retirer securityContext.privileged.'
+      message: "Conteneur privileged interdit hors namespaces système. Retirer securityContext.privileged."
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: kube12-disallow-privileged
+spec:
+  policyName: kube12-disallow-privileged
+  validationActions: ["Deny"]
+  matchResources:
+    # Namespaces système exemptés (Calico, CoreDNS, driver EFS, local-path de kind).
+    # Le label kubernetes.io/metadata.name est posé par l'apiserver et ne peut pas être falsifié.
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: ["kube-system", "kube-public", "kube-node-lease", "local-path-storage"]

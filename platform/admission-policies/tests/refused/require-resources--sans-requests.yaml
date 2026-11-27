@@ -1,0 +1,17 @@
+# Refusé : limits sans requests
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-no-requests
+  namespace: default
+spec:
+  selector:
+    matchLabels: {app: test-no-requests}
+  template:
+    metadata:
+      labels: {app: test-no-requests}
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.29
+          resources: {limits: {cpu: 100m, memory: 64Mi}}

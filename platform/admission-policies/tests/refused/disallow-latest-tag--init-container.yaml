@@ -1,0 +1,15 @@
+# Refusé : initContainer sans tag
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-latest-init
+  namespace: default
+spec:
+  initContainers:
+    - name: init
+      image: busybox
+      resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 64Mi}}
+  containers:
+    - name: app
+      image: nginx:1.29
+      resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 64Mi}}

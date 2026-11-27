@@ -1,0 +1,19 @@
+# Refusé : initContainer privileged
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: test-privileged-job
+  namespace: default
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: init
+          image: busybox:1.37
+          resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 64Mi}}
+          securityContext: {privileged: true}
+      containers:
+        - name: app
+          image: nginx:1.29
+          resources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 64Mi}}

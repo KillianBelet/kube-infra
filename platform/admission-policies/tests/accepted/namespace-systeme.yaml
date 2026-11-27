@@ -1,0 +1,11 @@
+# Accepté : kube-system est exempté (latest, privileged, sans ressources)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-system
+  namespace: kube-system
+spec:
+  containers:
+    - name: app
+      image: busybox:latest
+      securityContext: {privileged: true}

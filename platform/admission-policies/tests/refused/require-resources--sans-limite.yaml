@@ -1,0 +1,17 @@
+# Refusé : requests sans limite mémoire
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-no-limits
+  namespace: default
+spec:
+  selector:
+    matchLabels: {app: test-no-limits}
+  template:
+    metadata:
+      labels: {app: test-no-limits}
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.29
+          resources: {requests: {cpu: 10m, memory: 16Mi}}
