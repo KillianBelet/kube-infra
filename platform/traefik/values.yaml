@@ -41,10 +41,15 @@ additionalArguments:
   - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
   - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
 
-# Exigé par la policy kube12-require-resources (docs/admission-policies.md).
+# Labels et ressources : docs/conventions.md (#80). Ressources exigées par la policy
+# kube12-require-resources (docs/admission-policies.md).
+commonLabels:
+  app.kubernetes.io/part-of: traefik
+
 resources:
   requests:
     cpu: 50m
     memory: 64Mi
   limits:
+    cpu: 500m
     memory: 256Mi

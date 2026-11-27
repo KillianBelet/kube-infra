@@ -7,13 +7,18 @@ crds:
   enabled: true
   keep: true
 
-# requests + limite mémoire partout (policy kube12-require-resources).
-# Les pods solveurs HTTP-01 ont déjà des valeurs par défaut.
+# Labels et ressources : docs/conventions.md (#80). requests + limite mémoire exigées par la
+# policy kube12-require-resources ; les pods solveurs HTTP-01 ont déjà des valeurs par défaut.
+global:
+  commonLabels:
+    app.kubernetes.io/part-of: cert-manager
+
 resources:
   requests:
     cpu: 10m
     memory: 64Mi
   limits:
+    cpu: 200m
     memory: 256Mi
 
 webhook:
@@ -22,6 +27,7 @@ webhook:
       cpu: 10m
       memory: 32Mi
     limits:
+      cpu: 100m
       memory: 128Mi
 
 cainjector:
@@ -30,12 +36,15 @@ cainjector:
       cpu: 10m
       memory: 64Mi
     limits:
+      cpu: 100m
       memory: 512Mi
 
+# Job de vérification lancé après l'installation
 startupapicheck:
   resources:
     requests:
       cpu: 10m
       memory: 32Mi
     limits:
+      cpu: 100m
       memory: 128Mi

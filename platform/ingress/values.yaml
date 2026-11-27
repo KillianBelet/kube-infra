@@ -40,7 +40,7 @@ routes:
     service: headlamp
     port: 80
   dex:              # #41
-    enabled: false
+    enabled: true
     namespace: dex
     service: dex
     port: 5556

@@ -16,6 +16,11 @@ image:
   repository: bitnamilegacy/mysql
   tag: 8.4.5-debian-12-r0
 
+# Labels : docs/conventions.md (#80)
+commonLabels:
+  app.kubernetes.io/part-of: keycloak
+  app.kubernetes.io/component: database
+
 architecture: standalone
 
 auth:
@@ -36,6 +41,7 @@ primary:
       cpu: 50m
       memory: 384Mi
     limits:
+      cpu: "1"
       memory: 768Mi
 
   startupProbe:

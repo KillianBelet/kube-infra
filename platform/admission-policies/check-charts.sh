@@ -46,6 +46,8 @@ check keycloak-db keycloak oci://registry-1.docker.io/bitnamicharts/mysql --vers
   -f platform/keycloak/values-db.yaml
 check keycloak keycloak keycloakx --repo https://codecentric.github.io/helm-charts --version 7.4.0 \
   -f platform/keycloak/values.yaml --set baseDomain=127.0.0.1.sslip.io
+check dex dex dex --repo https://charts.dexidp.io --version 0.26.0 \
+  -f platform/dex/values.yaml
 
 echo
 if [ "$fails" -eq 0 ]; then echo "Tous les charts sont conformes."; else echo "$fails chart(s) en échec."; exit 1; fi

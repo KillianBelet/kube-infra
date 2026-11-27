@@ -1,0 +1,5 @@
+apiVersion: v2
+name: dex-config
+description: Config et secrets de dex (#41), construits à partir de baseDomain
+type: application
+version: 0.1.0

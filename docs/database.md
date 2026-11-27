@@ -1,4 +1,4 @@
-# Base de données MySQL (#54) et sauvegardes (#56)
+# Base de données MySQL (#54), sauvegardes (#56) et restauration (#57)
 
 Dépend de : Sealed Secrets (#37), StorageClass `efs-sc` (#28), Argo CD app-of-apps (#36).
 
@@ -26,6 +26,8 @@ Ses fichiers sont sur un volume persistant `efs-sc` : si le pod meurt, les donn�
 | `platform/mysql/seal-credentials.sh` | génère et chiffre de nouveaux mots de passe |
 | `platform/mysql/manifests/backup-cronjob.yaml` | sauvegarde quotidienne de la base (§ 9) |
 | `platform/mysql/manifests/backup-pvc.yaml` | volume `efs-sc` des sauvegardes, séparé de celui de la base |
+| `platform/mysql/restore.sh` | restaure la base depuis un dump (§ 10) |
+| `platform/mysql/test-restore.sh` | test de restauration de bout en bout (§ 10) |
 | `platform/sealed-secrets/team-cert.crt` | certificat **public** de l'équipe, pour chiffrer sans être connecté au cluster |
 
 ## 2. Comment ça marche
@@ -192,22 +194,9 @@ kubectl -n database logs job/backup-manuel        # « Dump écrit : /backups/ap
 kubectl -n database delete job backup-manuel
 ```
 
-### Restaurer un dump (test #57)
+### Restaurer un dump
 
-Le volume des sauvegardes est aussi monté **en lecture seule** dans le pod de la base (`/backups`) :
-on rejoue le dump directement depuis `mysql-0`.
-
-```bash
-kubectl -n database exec mysql-0 -c mysql -- ls -l /backups          # choisir un dump
-kubectl -n database exec mysql-0 -c mysql -- bash -c \
-  'MYSQL_PWD="$(cat "$MYSQL_ROOT_PASSWORD_FILE")" && export MYSQL_PWD &&
-   gunzip -c /backups/app_database-AAAAMMJJ-HHMMSS.sql.gz | mysql -u root'
-```
-
-Le dump contient `CREATE DATABASE IF NOT EXISTS` et, pour chaque table, `DROP TABLE IF EXISTS` puis les données :
-les tables du dump reviennent à leur état au moment de la sauvegarde. Une table créée **après** le dump n'est pas
-supprimée. Pour un test propre, couper l'application pendant la restauration (`replicas: 0`, ou
-`kubectl -n app scale deploy <app> --replicas=0`), puis la relancer.
+Voir § 10.
 
 ### Tests réalisés (kind, 15/11/2026)
 
@@ -230,3 +219,75 @@ supprimée. Pour un test propre, couper l'application pendant la restauration (`
 | Job en `Pending` | volume `mysql-backups` attaché à un autre nœud (kind) ou pas de nœud `kube-2` : `kubectl -n database describe pod -l job-name=...` |
 | Pas de nouveau dump chaque nuit | `kubectl -n database get cronjob mysql-backup` (colonne `LAST SCHEDULE`) et `kubectl -n database get jobs` |
 | Fichiers `.tmp` dans `/backups` | sauvegarde interrompue : ils sont supprimés par la rétention, à ne pas restaurer |
+
+## 10. Restauration (#57)
+
+À utiliser quand des données ont été supprimées ou abîmées (mauvaise manip, migration ratée) : les tables de
+`app_database` reviennent à leur état au moment de la sauvegarde.
+
+Les dumps sont sur EFS, qui est détruit avec l'infra (`destroy-aws.yml`). Pour garder une sauvegarde plus longtemps, la
+copier hors du cluster avant (plus bas).
+
+```bash
+./platform/mysql/restore.sh                                     # liste les dumps
+./platform/mysql/restore.sh latest                              # le plus récent
+./platform/mysql/restore.sh app_database-20261120-020000.sql.gz
+```
+
+Le script :
+
+1. vérifie que le dump existe et qu'il n'est pas abîmé (`gzip -t`) ;
+2. affiche le cluster courant et demande confirmation (`-y` pour ne pas la demander) ;
+3. lance une sauvegarde de l'état actuel avec le CronJob, pour pouvoir revenir en arrière (`--no-backup` pour la
+   sauter) ;
+4. rejoue le dump dans `mysql-0` (`gunzip | mysql`, depuis `/backups` monté en lecture seule) ;
+5. affiche les tables de la base.
+
+Chaque table du dump est supprimée puis recréée avec ses données. Une table créée après le dump reste en place. Les
+comptes MySQL ne sont pas dans le dump : les mots de passe ne changent pas, rien à resceller.
+
+### Couper l'application pendant la restauration
+
+Sinon elle peut écrire entre deux tables, ou bloquer un `DROP TABLE` avec une transaction ouverte. `kube-app` est géré
+par Argo CD avec `selfHeal` : un `kubectl scale` serait annulé tout de suite. Il faut couper la synchro auto de `root`
+(qui remettrait celle de `kube-app`), puis celle de `kube-app` :
+
+```bash
+kubectl -n argocd patch application root --type merge -p '{"spec":{"syncPolicy":{"automated":null}}}'
+kubectl -n argocd patch application kube-app --type merge -p '{"spec":{"syncPolicy":{"automated":null}}}'
+kubectl -n app scale deployment --all --replicas=0
+
+./platform/mysql/restore.sh latest
+
+kubectl -n argocd patch application root --type merge -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
+```
+
+En se resynchronisant, `root` remet la synchro auto de `kube-app`, qui relance l'application.
+
+### Copier un dump hors du cluster
+
+```bash
+kubectl -n database exec mysql-0 -c mysql -- cat /backups/app_database-20261120-020000.sql.gz > app_database-20261120-020000.sql.gz
+./platform/mysql/restore.sh --file app_database-20261120-020000.sql.gz      # sur n'importe quel cluster
+```
+
+### Test
+
+```bash
+./platform/mysql/test-restore.sh
+```
+
+Le test écrit une ligne dans une table `restore_test_57`, lance une sauvegarde avec le CronJob, modifie la ligne et en
+ajoute une autre, restaure le dump avec `restore.sh`, puis vérifie que la valeur d'origine est revenue et que la ligne
+ajoutée a disparu. La table de test est supprimée à la fin.
+
+Le dump du test reste dans `/backups` (la rétention le supprime au bout de 7 jours) et devient le plus récent : juste
+après un test, restaurer un dump par son nom plutôt qu'avec `latest`.
+
+### Tests réalisés
+
+| Test | Résultat |
+|---|---|
+| `restore.sh` avec un faux `kubectl` (26/11/2026) | dump le plus récent choisi, sauvegarde lancée avant la restauration, nom invalide ou absent refusé, annulation à la confirmation, restauration depuis un fichier local |
+| restauration depuis `mysql-0` sur kind (15/11/2026, § 9) | valeur d'origine retrouvée |
+| `test-restore.sh` sur kind et sur AWS | pas encore lancé |

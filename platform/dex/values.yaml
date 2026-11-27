@@ -1,0 +1,42 @@
+# dex (#41)
+# Chart : dex 0.26.0 (https://charts.dexidp.io), dex v2.46.0
+# Namespace : dex. Service : dex:5556
+# La config vient de platform/dex/config (elle dépend de baseDomain).
+# Voir docs/dex.md.
+
+fullnameOverride: dex
+
+image:
+  tag: v2.46.0
+
+configSecret:
+  create: false
+  name: dex-config
+
+# secrets du connecteur Keycloak et des clients
+envFrom:
+  - secretRef:
+      name: dex-secrets
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  runAsNonRoot: true
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+
+# Labels et ressources : docs/conventions.md (#80)
+commonLabels:
+  app.kubernetes.io/part-of: dex
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi

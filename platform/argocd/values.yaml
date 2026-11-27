@@ -39,12 +39,15 @@ configs:
       end
       return hs
 
+# Ressources (#80, docs/conventions.md) : requests = usage normal, limits = plafond.
+# Labels : le chart pose déjà app.kubernetes.io/name, part-of: argocd et component.
 server:
   resources:
     requests:
       cpu: 25m
       memory: 128Mi
     limits:
+      cpu: 500m
       memory: 512Mi
 
 controller:
@@ -53,14 +56,17 @@ controller:
       cpu: 50m
       memory: 256Mi
     limits:
+      cpu: "1"
       memory: 1Gi
 
 repoServer:
+  # aussi appliqué au conteneur d'init copyutil
   resources:
     requests:
       cpu: 25m
       memory: 128Mi
     limits:
+      cpu: "1"
       memory: 768Mi
 
 applicationSet:
@@ -69,6 +75,7 @@ applicationSet:
       cpu: 10m
       memory: 64Mi
     limits:
+      cpu: 200m
       memory: 256Mi
 
 redis:
@@ -77,15 +84,17 @@ redis:
       cpu: 10m
       memory: 32Mi
     limits:
+      cpu: 200m
       memory: 256Mi
 
-# Job lancé avant chaque installation / mise à jour (mot de passe Redis).
+# Job qui génère le mot de passe de redis à l'installation
 redisSecretInit:
   resources:
     requests:
       cpu: 10m
       memory: 64Mi
     limits:
+      cpu: 100m
       memory: 256Mi
 
 # Pas de Dex : la connexion SSO passera directement par Keycloak (OIDC, ticket auth).

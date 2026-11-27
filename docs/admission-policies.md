@@ -23,7 +23,7 @@ Déployées par Argo CD (Application `admission-policies`, wave -1, [gitops.md](
 
 ```
 platform/admission-policies/
-├── manifests/   une policy et son binding par fichier (déployés par Argo CD)
+├── manifests/   une policy et son binding par fichier, kustomization.yaml (labels) (déployés par Argo CD)
 ├── tests/       refused/ et accepted/ (jamais déployés)
 ├── test.sh          manifests refusés / acceptés, et audit du cluster
 └── check-charts.sh  charts du repo rendus avec leurs values
@@ -37,7 +37,7 @@ ses pods ne sont plus recréés (redémarrage de nœud, `rollout restart`...).
 1. **Essayer en local avant de merger** (Argo CD lit `develop`, pas la branche) :
 
    ```bash
-   kubectl apply -f platform/admission-policies/manifests/
+   kubectl apply -k platform/admission-policies/manifests/
    ./platform/admission-policies/test.sh
    ./platform/admission-policies/check-charts.sh     # values de la branche
    ./platform/admission-policies/test.sh --audit     # ce qui tourne déjà
@@ -45,7 +45,7 @@ ses pods ne sont plus recréés (redémarrage de nœud, `rollout restart`...).
 
    Sur un cluster déployé depuis `develop`, `--audit` signale les composants dont les nouvelles
    valeurs ne sont pas encore appliquées. Sans merge ensuite, retirer les policies :
-   `kubectl delete -f platform/admission-policies/manifests/`.
+   `kubectl delete -k platform/admission-policies/manifests/`.
 2. **Mettre à jour Argo CD avant le merge** : il n'est pas géré par GitOps, ses nouvelles
    `resources` ne sont pas appliquées toutes seules. Sans cela, ses pods ne pourront pas être recréés.
 
@@ -93,7 +93,7 @@ containers:
 | Application `OutOfSync`, erreur `denied request` | le manifest ou les values du composant ne respectent pas la règle citée |
 | Deployment accepté mais aucun pod | refus au niveau du ReplicaSet : `kubectl -n <ns> describe rs` |
 | Chart tiers sans réglage de ressources pour un conteneur | chercher la clé dans les values du chart (`initContainers`, jobs de hook) |
-| Besoin de désactiver en urgence | retirer le fichier de `manifests/` par Git (le `selfHeal` annule un `kubectl delete`) |
+| Besoin de désactiver en urgence | retirer le fichier de `manifests/` et de son `kustomization.yaml` par Git (le `selfHeal` annule un `kubectl delete`) |
 
 Les nouveaux composants (monitoring, logging, dex, Headlamp...) doivent respecter ces règles. Un agent
 qui aurait besoin de `privileged` ne peut pas tourner hors des namespaces exemptés sans modifier le binding.

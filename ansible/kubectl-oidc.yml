@@ -1,0 +1,101 @@
+---
+# kubeconfig personnel par OIDC (#44) : chacun se connecte au cluster AWS avec son compte
+# Keycloak (via dex), plus de kubeconfig admin partagé. Voir docs/kubectl-oidc.md.
+#
+#   ansible-playbook -i inventory kubectl-oidc.yml
+#   export KUBECONFIG=~/.kube-12/kubeconfig-oidc
+#   kubectl get nodes              # le navigateur s'ouvre sur Keycloak au premier appel
+#
+# Prérequis : aws_outputs.yml (IP publique), accès SSH à kube-1, dex déployé (#41).
+# Les droits viennent des groupes Keycloak (RBAC, #43) ; l'apiserver doit accepter dex (#42).
+# Certificat dex encore en staging : -e oidc_insecure_skip_tls_verify=true (test uniquement).
+
+- name: Infos du cluster (sur kube-1)
+  hosts: control_plane
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Vérifier les paramètres
+      ansible.builtin.assert:
+        that: [public_ip is defined, base_domain is defined]
+        fail_msg: "public_ip / base_domain manquants : copier aws_outputs.yml.example en aws_outputs.yml"
+        quiet: true
+
+    # Certificat public de la CA du cluster : pas un secret, il permet à kubectl de vérifier l'apiserver
+    - name: Lire la CA du cluster
+      ansible.builtin.slurp:
+        src: /etc/kubernetes/pki/ca.crt
+      register: oidc_cluster_ca
+
+    # Secret du client « kubernetes » de dex : lu dans le cluster, jamais affiché ni versionné
+    - name: Lire le secret du client {{ oidc_client_id }}
+      ansible.builtin.command: >-
+        kubectl --kubeconfig /etc/kubernetes/admin.conf -n dex get secret dex-secrets
+        -o jsonpath={.data.KUBERNETES_CLIENT_SECRET}
+      register: oidc_client_secret_b64
+      changed_when: false
+      failed_when: oidc_client_secret_b64.rc != 0 or not oidc_client_secret_b64.stdout
+      no_log: true
+
+- name: Kubelogin et kubeconfig OIDC (en local)
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  gather_subset: [min]
+  vars:
+    bin_dir: "{{ lookup('ansible.builtin.env', 'HOME') }}/.local/bin"
+    work_dir: "{{ lookup('ansible.builtin.env', 'HOME') }}/.kube-12"
+    kubeconfig_path: "{{ work_dir }}/kubeconfig-oidc"
+    os: "{{ ansible_facts.system | lower }}" # linux / darwin
+    arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}[ansible_facts.architecture] }}"
+    cp: "{{ hostvars[groups['control_plane'][0]] }}"
+    oidc_insecure_skip_tls_verify: false
+  tasks:
+    - name: Dossiers de travail
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: ["{{ bin_dir }}", "{{ work_dir }}"]
+
+    - name: Télécharger kubelogin {{ kubelogin_version }}
+      ansible.builtin.get_url:
+        url: "https://github.com/int128/kubelogin/releases/download/{{ kubelogin_version }}/kubelogin_{{ os }}_{{ arch }}.zip"
+        checksum: "sha256:{{ kubelogin_sha256[os ~ '_' ~ arch] }}"
+        dest: "{{ work_dir }}/kubelogin-{{ kubelogin_version }}.zip"
+        mode: "0644"
+      register: kubelogin_archive
+
+    - name: Extraire kubelogin
+      ansible.builtin.unarchive:
+        src: "{{ kubelogin_archive.dest }}"
+        dest: "{{ work_dir }}"
+        include: [kubelogin]
+        mode: "0755"
+
+    # kubectl trouve les plugins nommés kubectl-<nom> dans le PATH : kubectl oidc-login
+    - name: Installer kubectl-oidc_login dans {{ bin_dir }}
+      ansible.builtin.copy:
+        src: "{{ work_dir }}/kubelogin"
+        dest: "{{ bin_dir }}/kubectl-oidc_login"
+        mode: "0755"
+
+    - name: Écrire le kubeconfig OIDC
+      ansible.builtin.template:
+        src: templates/kubectl-oidc-config.yaml.j2
+        dest: "{{ kubeconfig_path }}"
+        mode: "0600" # contient le secret du client dex
+      vars:
+        oidc_client_secret: "{{ cp.oidc_client_secret_b64.stdout | b64decode }}"
+        cluster_ca_b64: "{{ cp.oidc_cluster_ca.content }}"
+        apiserver_url: "https://{{ cp.public_ip }}:6443"
+        issuer_url: "{{ cp.oidc_issuer_url }}"
+      no_log: true
+
+    - name: Récapitulatif
+      ansible.builtin.debug:
+        msg:
+          - "kubeconfig : {{ kubeconfig_path }}"
+          - "export KUBECONFIG={{ kubeconfig_path }} && kubectl get nodes"
+          - "Premier appel : connexion Keycloak dans le navigateur (jeton gardé 1 h, renouvelé tout seul)"
+          - "Se déconnecter : kubectl oidc-login clean"
