@@ -16,3 +16,4 @@ ansible/files/team_authorized_keys
 .idea/
 *.ps1
 .kube-12/
+__pycache__/
