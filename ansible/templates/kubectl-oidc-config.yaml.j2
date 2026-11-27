@@ -1,0 +1,33 @@
+# Généré par kubectl-oidc.yml (#44). Personnel : ne pas versionner ni partager.
+apiVersion: v1
+kind: Config
+clusters:
+  - name: kube-12
+    cluster:
+      server: {{ apiserver_url }}
+      certificate-authority-data: {{ cluster_ca_b64 }}
+users:
+  - name: oidc
+    user:
+      exec:
+        apiVersion: client.authentication.k8s.io/v1
+        command: {{ bin_dir }}/kubectl-oidc_login
+        args:
+          - get-token
+          - --oidc-issuer-url={{ issuer_url }}
+          - --oidc-client-id={{ oidc_client_id }}
+          - --oidc-client-secret={{ oidc_client_secret }}
+{% for scope in oidc_scopes %}
+          - --oidc-extra-scope={{ scope }}
+{% endfor %}
+{% if oidc_insecure_skip_tls_verify | bool %}
+          - --insecure-skip-tls-verify
+{% endif %}
+        interactiveMode: IfAvailable
+        provideClusterInfo: false
+contexts:
+  - name: kube-12-oidc
+    context:
+      cluster: kube-12
+      user: oidc
+current-context: kube-12-oidc
