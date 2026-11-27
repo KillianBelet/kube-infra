@@ -3,6 +3,10 @@ kind: Secret
 metadata:
   name: dex-config
   namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: dex
+    app.kubernetes.io/part-of: dex
+    app.kubernetes.io/component: config
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 type: Opaque

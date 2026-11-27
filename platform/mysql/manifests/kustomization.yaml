@@ -1,0 +1,13 @@
+# Manifests de la base de l'application (#54, #56) : identifiants scellés, volume et CronJob
+# de sauvegarde. Labels communs : docs/conventions.md (#80).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: mysql
+
+resources:
+  - mysql-credentials.sealed.yaml
+  - backup-pvc.yaml
+  - backup-cronjob.yaml

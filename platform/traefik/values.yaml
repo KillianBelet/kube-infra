@@ -40,3 +40,15 @@ tolerations:
 additionalArguments:
   - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
   - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+
+# Labels et ressources : docs/conventions.md (#80)
+commonLabels:
+  app.kubernetes.io/part-of: traefik
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

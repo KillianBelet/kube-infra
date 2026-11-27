@@ -7,19 +7,43 @@ crds:
   enabled: true
   keep: true
 
+# Labels et ressources : docs/conventions.md (#80)
+global:
+  commonLabels:
+    app.kubernetes.io/part-of: cert-manager
+
 resources:
   requests:
     cpu: 10m
     memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
 
 webhook:
   resources:
     requests:
       cpu: 10m
       memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
 
 cainjector:
   resources:
     requests:
       cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 256Mi
+
+# Job de vérification lancé après l'installation
+startupapicheck:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
       memory: 64Mi

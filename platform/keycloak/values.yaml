@@ -87,13 +87,18 @@ securityContext:
   capabilities:
     drop: ["ALL"]
 
-# pas de limite CPU, sinon le démarrage est très lent
+# Limite CPU large (2 vCPU) : une limite basse rend le démarrage très lent
 resources:
   requests:
     cpu: 100m
     memory: 768Mi
   limits:
+    cpu: "2"
     memory: 1Gi
+
+# Labels : docs/conventions.md (#80)
+commonLabels:
+  app.kubernetes.io/part-of: keycloak
 
 # premier démarrage lent sur EFS (création du schéma) : 10 min max
 startupProbe: |

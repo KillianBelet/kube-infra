@@ -7,3 +7,15 @@
 # Sans ce réglage, le contrôleur génère une nouvelle clé tous les 30 jours, et les secrets
 # scellés avec elle ne se déchiffrent plus sur les autres clusters. "0" (avec les guillemets) = jamais.
 keyrenewperiod: "0"
+
+# Labels et ressources : docs/conventions.md (#80)
+commonLabels:
+  app.kubernetes.io/part-of: sealed-secrets
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
