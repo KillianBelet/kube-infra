@@ -4,6 +4,7 @@
 |---|---|
 | [../README.md](../README.md) | vue d'ensemble, environnement local (kind), prise en main |
 | [admission-policies.md](admission-policies.md) | ValidatingAdmissionPolicy : règles (tag `:latest`, ressources, `privileged`), mise en service, tests |
+| [application.md](application.md) | déploiement de l'application : Application Argo CD, ordre (secrets, migration, 3 replicas), secrets scellés, vérifications |
 | [infra-aws.md](infra-aws.md) | infrastructure AWS : ce qui est créé, prérequis, créer / éteindre / détruire, accès équipe, coûts |
 | [runbook.md](runbook.md) | **reconstruire le cluster de zéro** : AWS → Kubernetes → Argo CD → services en HTTPS, vérifications, destruction |
 | [conventions.md](conventions.md) | **règles communes** : requests/limits, labels recommandés, Helm ou kustomize, vérification (`scripts/check-conventions.py`) |

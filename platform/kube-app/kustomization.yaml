@@ -12,4 +12,5 @@ labels:
 commonAnnotations:
   argocd.argoproj.io/sync-wave: "-1"
 
-resources: []
+resources:
+  - kube-app-secrets.sealed.yaml

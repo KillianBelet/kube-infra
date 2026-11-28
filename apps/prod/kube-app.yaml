@@ -1,0 +1,39 @@
+# Application métier (#55) : overlay prod du dossier deploy/ du repo applicatif, et ses secrets
+# scellés (platform/kube-app). Voir docs/application.md.
+# Wave 3 : déployée après l'infra (Traefik, certificats, base de données, monitoring).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-app
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    # develop, comme kube-infra : la CI du repo y écrit le tag de chaque nouvelle image
+    - repoURL: https://github.com/KillianBelet/kube-app
+      targetRevision: develop
+      path: deploy/overlays/prod
+    # kube-app-secrets (APP_KEY, DB_PASSWORD) et imagePullSecret ghcr-pull (#38)
+    - repoURL: https://github.com/KillianBelet/kube-infra
+      targetRevision: develop
+      path: platform/kube-app
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

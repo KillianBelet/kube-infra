@@ -19,10 +19,10 @@ annotations: {}
 # Une entrée par service exposé. Le propriétaire du service passe enabled à true
 # dans sa PR, une fois le Service déployé (le namespace doit exister).
 routes:
-  app:              # #55
-    enabled: false
+  app:              # #55 : /metrics refusé par l'app sur ce port (servi sur 9090, hors Ingress)
+    enabled: true
     namespace: app
-    service: app
+    service: kube-app
     port: 80
   argocd:           # #35 : argocd-server en HTTP (server.insecure), TLS terminé par Traefik
     enabled: true

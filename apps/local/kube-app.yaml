@@ -1,6 +1,6 @@
-# Application métier : manifests du dossier deploy/ du repo applicatif, et ses secrets scellés
-# (platform/kube-app, docs/registry.md).
-# Wave 3 : déployée après l'infra (Traefik, certificats, Ingress).
+# Application métier (#55) : overlay local du dossier deploy/ du repo applicatif, et ses secrets
+# scellés (platform/kube-app). Voir docs/application.md.
+# Wave 3 : déployée après l'infra (Traefik, certificats, base de données, monitoring).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -13,12 +13,11 @@ metadata:
 spec:
   project: default
   sources:
+    # develop, comme kube-infra : la CI du repo y écrit le tag de chaque nouvelle image
     - repoURL: https://github.com/KillianBelet/kube-app
-      targetRevision: HEAD
-      path: deploy
-      directory:
-        recurse: true
-    # imagePullSecret ghcr-pull (#38)
+      targetRevision: develop
+      path: deploy/overlays/local
+    # kube-app-secrets (APP_KEY, DB_PASSWORD) et imagePullSecret ghcr-pull (#38)
     - repoURL: https://github.com/KillianBelet/kube-infra
       targetRevision: develop
       path: platform/kube-app
