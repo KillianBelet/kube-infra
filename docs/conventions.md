@@ -32,6 +32,7 @@ reprennent souvent les ressources du conteneur principal.
 | dex | 10m / 32Mi | 200m / 128Mi |
 | Prometheus | 100m / 512Mi | 1 / 1536Mi |
 | Alertmanager, opérateur, node-exporter, kube-state-metrics | 10-20m / 32-64Mi | 100-200m / 64-256Mi |
+| Grafana (+ sidecars) | 50m / 128Mi (10m / 64Mi) | 500m / 384Mi (100m / 128Mi) |
 
 ## 2. Labels recommandés
 

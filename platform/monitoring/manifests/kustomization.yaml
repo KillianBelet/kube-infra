@@ -1,0 +1,26 @@
+# Manifests du monitoring hors chart (#47) : secrets scellés et dashboards Grafana.
+# Deuxième source de l'Application kube-prometheus-stack. Voir docs/monitoring.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: kube-prometheus-stack
+
+resources:
+  - grafana-admin.sealed.yaml
+
+# Un dashboard = un fichier JSON de dashboards/, chargé par le sidecar de Grafana
+# (label grafana_dashboard=1) dans le dossier kube12.
+generatorOptions:
+  disableNameSuffixHash: true
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: grafana-dashboard
+  annotations:
+    grafana_folder: kube12
+
+configMapGenerator:
+  - name: grafana-dashboard-kube-app
+    files:
+      - dashboards/kube-app.json
