@@ -30,9 +30,12 @@ WORKLOADS = {"Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob", "Pod", 
 SKIP_LABEL_KINDS = {"CustomResourceDefinition"}
 NAME = "app.kubernetes.io/name"
 PART_OF = "app.kubernetes.io/part-of"
-# Charts qui ne posent pas app.kubernetes.io/name sur toutes leurs ressources et ne permettent pas
-# de l'ajouter sans doublon (commonLabels le répète là où il existe déjà). Les pods l'ont toujours.
-NAME_OPTIONAL = {"kube-prometheus-stack"}
+# Labels qu'un chart ne permet pas d'ajouter à ses ressources (pas de commonLabels, ou commonLabels
+# qui crée des doublons). Les pods les ont quand même (podLabels). Voir docs/conventions.md.
+LABELS_OPTIONAL = {
+    "kube-prometheus-stack": {NAME},
+    "headlamp": {PART_OF},
+}
 
 
 def run(cmd, cwd=None):
@@ -134,8 +137,8 @@ def check(component, objs):
         ref = f"{kind}/{meta.get('name')}"
         labels = meta.get("labels") or {}
         if kind not in SKIP_LABEL_KINDS:
-            required = (PART_OF,) if component in NAME_OPTIONAL else (NAME, PART_OF)
-            missing = [k for k in required if k not in labels]
+            optional = LABELS_OPTIONAL.get(component, set())
+            missing = [k for k in (NAME, PART_OF) if k not in labels and k not in optional]
             if missing:
                 problems.append(f"{ref} : labels absents {', '.join(missing)}")
         if kind not in WORKLOADS:

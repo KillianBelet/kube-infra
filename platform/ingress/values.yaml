@@ -35,7 +35,7 @@ routes:
     service: kube-prometheus-stack-grafana
     port: 80
   headlamp:         # #50
-    enabled: false
+    enabled: true
     namespace: headlamp
     service: headlamp
     port: 80
