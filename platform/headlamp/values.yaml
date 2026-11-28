@@ -1,0 +1,42 @@
+# Headlamp (#50) : tableau de bord Kubernetes web.
+# Chart : headlamp 0.46.0 (https://kubernetes-sigs.github.io/headlamp/), Headlamp v0.46.0
+# Namespace : headlamp. Service : headlamp:80, route headlamp de platform/ingress.
+# Voir docs/headlamp.md.
+
+fullnameOverride: headlamp
+
+# Pas de secret OIDC tant que le SSO n'est pas branché (#51)
+config:
+  oidc:
+    secret:
+      create: false
+
+# Headlamp agit avec le jeton de la personne connectée : son compte de service n'a besoin
+# d'aucun droit (le chart lui donne cluster-admin par défaut).
+clusterRoleBinding:
+  create: false
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  runAsNonRoot: true
+  privileged: false
+  runAsUser: 100
+  runAsGroup: 101
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+
+# Labels et ressources : docs/conventions.md (#80)
+podLabels:
+  app.kubernetes.io/part-of: headlamp
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
