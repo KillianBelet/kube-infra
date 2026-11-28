@@ -12,9 +12,69 @@ fullnameOverride: kube-prometheus-stack
 crds:
   enabled: true
 
-# Grafana : #47
+# ---------- Grafana (#47) ----------
+# Service kube-prometheus-stack-grafana:80, route grafana de platform/ingress.
 grafana:
-  enabled: false
+  enabled: true
+  extraLabels:
+    app.kubernetes.io/part-of: kube-prometheus-stack
+  # Pod de test Helm : inutile avec Argo CD
+  testFramework:
+    enabled: false
+
+  # Compte admin scellé (platform/monitoring/manifests, seal-secrets.sh)
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+
+  # Rien à garder : datasources et dashboards viennent de Git
+  persistence:
+    enabled: false
+
+  # Prometheus est ajouté par le chart (uid prometheus) ; Loki vient de #46.
+  additionalDataSources:
+    - name: Loki
+      uid: loki
+      type: loki
+      access: proxy
+      url: http://loki.logging.svc.cluster.local:3100
+      jsonData:
+        maxLines: 1000
+
+  # Dashboards : ceux du chart (cluster, nœuds, pods...) et les ConfigMaps grafana_dashboard=1
+  # de tous les namespaces (platform/monitoring/dashboards). Modifiables dans l'UI mais non
+  # sauvegardés : une modification passe par Git.
+  defaultDashboardsEnabled: true
+  defaultDashboardsTimezone: Europe/Paris
+  defaultDashboardsEditable: false
+  sidecar:
+    dashboards:
+      folderAnnotation: grafana_folder
+      provider:
+        foldersFromFilesStructure: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+  grafana.ini:
+    analytics:
+      check_for_updates: false
+      reporting_enabled: false
+    users:
+      default_theme: light
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 384Mi
 
 # ---------- Prometheus ----------
 prometheus:

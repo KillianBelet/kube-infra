@@ -23,6 +23,10 @@ spec:
     - repoURL: https://github.com/KillianBelet/kube-infra
       targetRevision: develop
       ref: values
+    # Secret admin de Grafana et dashboards (#47)
+    - repoURL: https://github.com/KillianBelet/kube-infra
+      targetRevision: develop
+      path: platform/monitoring/manifests
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
@@ -32,6 +36,7 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
       # CRDs trop grosses pour l'annotation last-applied de kubectl apply
       - ServerSideApply=true
     retry:
